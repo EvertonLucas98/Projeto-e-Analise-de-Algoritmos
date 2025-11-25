@@ -2,7 +2,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
-#include <time.h>
 
 typedef struct {
     char codigo[14];
@@ -271,8 +270,6 @@ ItemArray lerDadosItem(FILE* arquivo)
 }
 
 int main(int argc, char *argv[]) {
-    // Medição do tempo de execução (início)
-    clock_t inicio = clock();
     // Verificação dos argumentos
     if (argc != 3)
     {
@@ -291,11 +288,6 @@ int main(int argc, char *argv[]) {
 
     // Processamento dos dados e escrita no arquivo de saída
     processarDados(dadosVeiculos, dadosItens, output);
-    
-    // Medição do tempo de execução (fim)
-    clock_t fim = clock();
-    double tempoExecucao = (double)(fim - inicio) / CLOCKS_PER_SEC;
-    printf("Tempo de execucao: %.6f segundos\n", tempoExecucao);
     
     // Fechando arquivos
     fclose(input);
