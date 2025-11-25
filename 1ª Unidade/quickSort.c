@@ -31,15 +31,26 @@ int mediana(int *array, int low, int mid, int high)
         return high;
 }
 
-// Função de partição usando o método Lomuto
-int lomuto(int *array, int low, int high, int pivot)
+// Função de partição usando o método Lomuto (v)
+int lomuto(int *array, int low, int high, int pivotValue)
 {
     int begin = low; // Armazena o índice do menor elemento
 
+    int pivotIndex = low; // Inicializa o índice do pivô
+    // Encontra o índice do pivô com base no valor do pivô
+    for (int i = low; i <= high; i++) {
+        if (array[i] == pivotValue) {
+            pivotIndex = i;
+            break;
+        }
+    }
+    swap(&array[pivotIndex], &array[high]);
+
+    // Loop para particionar o array
     for(int i = low; i < high; i++)
     {
         // Se o elemento atual é menor ou igual ao pivô faz a troca
-        if(array[i] <= pivot)
+        if(array[i] <= pivotValue)
         {
             // Faz a troca de posição entre array[begin] com array[i]
             swap(&array[begin], &array[i]);
@@ -197,32 +208,38 @@ int main()
     printf("Array Original: \n");
     for(int i = 0; i < n; i++)
         printf("%d ", arr1[i]);
-    // Ordena o array usando diferentes métodos de Quick Sort
+    /* Ordena o array usando diferentes métodos de Quick Sort */
+    // Lomuto Padrão
     quickSort(arr1, 0, n - 1, 1);
     printf("\nArray Ordenado pelo Lomuto Padrao: \n");
     for(int i = 0; i < n; i++)
         printf("%d ", arr1[i]);
     
+    // Lomuto Mediana
     quickSort(arr2, 0, n - 1, 2);
     printf("\nArray Ordenado pelo Lomuto Mediana: \n");
     for(int i = 0; i < n; i++)
         printf("%d ", arr2[i]);
-    
+
+    // Lomuto Aleatorio
     quickSort(arr3, 0, n - 1, 3);
     printf("\nArray Ordenado pelo Lomuto Aleatorio: \n");
     for(int i = 0; i < n; i++)
         printf("%d ", arr3[i]);
     
+    // Hoare Padrão
     quickSort(arr4, 0, n - 1, 4);
     printf("\nArray Ordenado pelo Hoare Padrao: \n");
     for(int i = 0; i < n; i++)
         printf("%d ", arr4[i]);
     
+    // Hoare Mediana
     quickSort(arr5, 0, n - 1, 5);
     printf("\nArray Ordenado pelo Hoare Mediana: \n");
     for(int i = 0; i < n; i++)
         printf("%d ", arr5[i]);
     
+    // Hoare Aleatorio
     quickSort(arr6, 0, n - 1, 6);
     printf("\nArray Ordenado pelo Hoare Aleatorio: \n");
     for(int i = 0; i < n; i++)

@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+#include <time.h>
 
 typedef struct {
     char codigo[14];
@@ -25,12 +26,7 @@ typedef struct {
     int qtd;
 } VeiculosArray;
 
-
-// Ponteiro triplo para a matriz 3D
-static double ***MatrizCache = NULL;
-static int qtdItensCache = 0;
-static int capPesoCache = 0;
-static int capVolumeCache = 0;
+double ***Matriz3d = NULL;
 
 // Função que retorna o maior valor entre dois valores
 double max(double a, double b) {
@@ -52,7 +48,7 @@ double*** alocarMatriz3D(int qtdItens, int capPeso, int capVolume)
 }
 
 // Função que preenche a tabela 3D para o problema da mochila
-void preencherTabela3D(double ***matriz3D, Item *itens, int qtdItens, double capPeso, int capVolume)
+void preencherTabela3D(double ***matriz3D, Item *itens, int qtdItens, int capPeso, int capVolume)
 {
     // Preenche o restante da tabela
     for (int i = 0; i <= qtdItens; i++)
@@ -78,36 +74,10 @@ void preencherTabela3D(double ***matriz3D, Item *itens, int qtdItens, double cap
 // Função que resolve o problema da mochila usando programação dinâmica
 ItemArray mochila3D(Item *itens, int qtdItens, int capPeso, int capVolume)
 {
-    if (MatrizCache == NULL) 
-    {
-        // Alocação das camadas da matriz 3D
-        MatrizCache = alocarMatriz3D(qtdItens, capPeso, capVolume);
-        // Atualiza os valores de cache
-        qtdItensCache = qtdItens;
-        capPesoCache = capPeso;
-        capVolumeCache = capVolume;
-        // Preenche a tabela 3D
-        preencherTabela3D(MatrizCache, itens, qtdItens, capPeso, capVolume);
-    } else if (capPeso > capPesoCache || capVolume > capVolumeCache)
-    {
-        // Libera a matriz antiga
-        for (int i = 0; i <= qtdItensCache; i++)
-        {
-            for (int j = 0; j <= capPesoCache; j++)
-                free(MatrizCache[i][j]);
-            free(MatrizCache[i]);
-        }
-        free(MatrizCache);
-        MatrizCache = NULL;
-        // Alocação das camadas da matriz 3D
-        MatrizCache = alocarMatriz3D(qtdItens, capPeso, capVolume);
-        // Atualiza os valores de cache
-        qtdItensCache = qtdItens;
-        capPesoCache = capPeso;
-        capVolumeCache = capVolume;
-        // Preenche a tabela 3D
-        preencherTabela3D(MatrizCache, itens, qtdItens, capPeso, capVolume);
-    }
+    // Alocação das camadas da matriz 3D
+    Matriz3d = alocarMatriz3D(qtdItens, capPeso, capVolume);
+    // Preenche a tabela 3D
+    preencherTabela3D(Matriz3d, itens, qtdItens, capPeso, capVolume);
     
     ItemArray itensAdd;
     itensAdd.itens = (Item *)malloc(qtdItens * sizeof(Item));
@@ -116,13 +86,16 @@ ItemArray mochila3D(Item *itens, int qtdItens, int capPeso, int capVolume)
     int auxPeso = capPeso;
     int auxVolume = capVolume;
     // O resultado final está no canto da última camada da tabela 2D.
-    itensAdd.valorMaximo = MatrizCache[qtdItens][capPeso][capVolume];
+    itensAdd.valorMaximo = Matriz3d[qtdItens][capPeso][capVolume];
     
     // Rastreia os itens incluídos na solução ótima
-    while (temp > 0 && auxPeso > 0 && auxVolume > 0)
+    while (temp > 0)
     {
+        // Verifica se os pesos e volumes auxiliares são válidos
+        if (auxPeso < 0 || auxVolume < 0)
+            break;
         // Inclui o item se o valor atual for diferente do valor na linha anterior
-        if (MatrizCache[temp][auxPeso][auxVolume] != MatrizCache[temp-1][auxPeso][auxVolume])
+        if (Matriz3d[temp][auxPeso][auxVolume] != Matriz3d[temp-1][auxPeso][auxVolume])
         {
             // Adiciona o item ao array de itens adicionados, sem substituir o anterior
             itensAdd.itens[itensAdd.qtd++] = itens[temp-1];
@@ -160,12 +133,17 @@ int calcularPorcentagens(int valorParcial, int valorTotal)
 void escreverOutput(FILE* output, char placa[], double valorMaximo, int somaPeso, int porcentagemPeso, int somaVolume, int porcentagemVolume, ItemArray itensAdd)
 {
     fprintf(output, "[%s]:%.2lf,%d(%d%%),%dL(%d%%)->", placa, valorMaximo, somaPeso, porcentagemPeso, somaVolume, porcentagemVolume);
-    for (int i = itensAdd.qtd - 1; i >= 0; i--)
+    if (valorMaximo == 0)
+        fprintf(output, "\n");
+    else
     {
-        if (strcmp(itensAdd.itens[i].codigo, itensAdd.itens[0].codigo) == 0)
-        fprintf(output, "%s\n", itensAdd.itens[i].codigo);
-        else
-        fprintf(output, "%s,", itensAdd.itens[i].codigo);
+        for (int i = itensAdd.qtd - 1; i >= 0; i--)
+        {
+            if (i == 0)
+            fprintf(output, "%s\n", itensAdd.itens[i].codigo);
+            else
+            fprintf(output, "%s,", itensAdd.itens[i].codigo);
+        }
     }
 }
 
@@ -224,12 +202,14 @@ void processarDados(VeiculosArray veiculos, ItemArray itens, FILE* output)
         }
         
         fprintf(output, "PENDENTE:R$%.2f,%dKG,%dL->", somaValor, somaPeso, somaVolume);
-        for (int i = 0; i < itens.qtd; i++)
-        {
-            fprintf(output, "%s", itens.itens[i].codigo);
-            if (i < itens.qtd - 1) fprintf(output, ",");
-        }
-        fprintf(output, "\n");
+        if (itens.qtd == 0)
+            fprintf(output, "\n");
+        else
+            for (int i = 0; i < itens.qtd; i++)
+            {
+                fprintf(output, "%s", itens.itens[i].codigo);
+                if (i < itens.qtd - 2) fprintf(output, ",");
+            }
     }
 }
 
@@ -291,6 +271,8 @@ ItemArray lerDadosItem(FILE* arquivo)
 }
 
 int main(int argc, char *argv[]) {
+    // Medição do tempo de execução (início)
+    clock_t inicio = clock();
     // Verificação dos argumentos
     if (argc != 3)
     {
@@ -310,13 +292,25 @@ int main(int argc, char *argv[]) {
     // Processamento dos dados e escrita no arquivo de saída
     processarDados(dadosVeiculos, dadosItens, output);
     
-    // Liberando memória alocada
-    free(dadosVeiculos.veiculos);
-    free(dadosItens.itens);
+    // Medição do tempo de execução (fim)
+    clock_t fim = clock();
+    double tempoExecucao = (double)(fim - inicio) / CLOCKS_PER_SEC;
+    printf("Tempo de execucao: %.6f segundos\n", tempoExecucao);
     
     // Fechando arquivos
     fclose(input);
     fclose(output);
     
+    // Liberando memória alocada
+    free(dadosVeiculos.veiculos);
+    free(dadosItens.itens);
+    for (int i = 0; i <= dadosItens.qtd; i++)
+    {
+        for (int j = 0; j <= dadosVeiculos.veiculos[i % dadosVeiculos.qtd].peso; j++)
+            free(Matriz3d[i][j]);
+        free(Matriz3d[i]);
+    }
+    free(Matriz3d);
+
     return 0;
 }

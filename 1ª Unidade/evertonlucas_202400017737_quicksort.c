@@ -3,41 +3,44 @@
 #include <time.h>
 #include <string.h>
 
-typedef struct
-{
-    char nome[4];
+typedef struct {
+    char nome[3];
     int trocas;
-    int id;
-} ResultadoTeste;
+} MetodoResultado;
 
-typedef struct
-{
+typedef struct {
     int *array;
     int size;
 } Array;
 
-typedef struct
-{
+typedef struct {
     Array *arrays;
     int qtdArrays;
 } SetArrays;
 
-void swap(int *a, int *b, int *trades)
-{
+// Estrutura para estatísticas
+typedef struct {
+    long long comparacoes;
+    long long trocas;
+    long long chamadas_recursivas;
+} Estatisticas;
+
+// Procedimento para trocar dois elementos com contagem
+void swap(int *a, int *b, Estatisticas *stats) {
     int temp = *a;
     *a = *b;
     *b = temp;
-    (*trades)++;
+    if (stats) stats->trocas++;
 }
 
-int pseudoRandom(int *array, int low, int high)
-{
-    if (high < low) return low;
-    return low + abs(array[low]) % (high - low);
+// Função correta para gerar índice aleatório
+int pseudoRandom(int low, int high) {
+    if (low >= high) return low;
+    return low + rand() % (high - low + 1);
 }
 
-int mediana(int *array, int low, int mid, int high)
-{
+// Função mediana
+int mediana(int *array, int low, int mid, int high) {
     int a = array[low];
     int b = array[mid];
     int c = array[high];
@@ -50,129 +53,159 @@ int mediana(int *array, int low, int mid, int high)
         return high;
 }
 
-int lomuto(int *array, int low, int high, int pivotValue, int *trades)
-{
+// Função de partição Lomuto
+int lomuto(int *array, int low, int high, int pivotValue, Estatisticas *stats) {
     int begin = low;
-    for (int i = low; i < high; i++) {
-        if (array[i] <= pivotValue) {
-            swap(&array[begin], &array[i], trades);
+    
+    // Encontra o índice do valor do pivô
+    int pivotIndex = high;
+    for (int i = low; i <= high; i++) {
+        if (stats) stats->comparacoes++;
+        if (array[i] == pivotValue) {
+            pivotIndex = i;
+            break;
+        }
+    }
+    
+    // Move o pivô para o final se necessário
+    if (pivotIndex != high) {
+        swap(&array[pivotIndex], &array[high], stats);
+    }
+    
+    // Particiona o array
+    for(int i = low; i < high; i++) {
+        if (stats) stats->comparacoes++;
+        if(array[i] <= pivotValue) {
+            if (begin != i) {
+                swap(&array[begin], &array[i], stats);
+            }
             begin++;
         }
     }
-    swap(&array[begin], &array[high], trades);
+    
+    // Coloca o pivô na posição correta
+    if (begin != high) {
+        swap(&array[begin], &array[high], stats);
+    }
+    
     return begin;
 }
 
-int lomutoPadrao(int *array, int low, int high, int *trades)
-{
-    return lomuto(array, low, high, array[high], trades);
+int lomutoPadrao(int *array, int low, int high, Estatisticas *stats) {
+    return lomuto(array, low, high, array[high], stats);
 }
 
-int lomutoMediana(int *array, int low, int high, int *trades)
-{
+int lomutoMediana(int *array, int low, int high, Estatisticas *stats) {
     if (low >= high) return low;
     int mid = low + (high - low) / 2;
     int pivotIndex = mediana(array, low, mid, high);
-    swap(&array[pivotIndex], &array[high], trades);
-    return lomuto(array, low, high, array[high], trades);
+    swap(&array[pivotIndex], &array[high], stats);
+    return lomuto(array, low, high, array[high], stats);
 }
 
-int lomutoRandom(int *array, int low, int high, int *trades)
-{
-    int pivot = pseudoRandom(array, low, high);
-    swap(&array[pivot], &array[high], trades);
-    return lomuto(array, low, high, array[high], trades);
+int lomutoRandom(int *array, int low, int high, Estatisticas *stats) {
+    int pivotIndex = pseudoRandom(low, high);
+    swap(&array[pivotIndex], &array[high], stats);
+    return lomuto(array, low, high, array[high], stats);
 }
 
-int hoare(int *array, int low, int high, int pivot, int *trades)
-{
+int hoare(int *array, int low, int high, int pivot, Estatisticas *stats) {
     int i = low - 1;
     int j = high + 1;
+    
     while (1) {
-        do { i++; } while (array[i] < pivot);
-        do { j--; } while (array[j] > pivot);
+        do { 
+            i++; 
+            if (stats) stats->comparacoes++;
+        } while (array[i] < pivot);
+        
+        do { 
+            j--; 
+            if (stats) stats->comparacoes++;
+        } while (array[j] > pivot);
+        
         if (i >= j) return j;
-        swap(&array[i], &array[j], trades);
+        
+        swap(&array[i], &array[j], stats);
     }
 }
 
-int hoarePadrao(int *array, int low, int high, int *trades)
-{
-    return hoare(array, low, high, array[low], trades);
+int hoarePadrao(int *array, int low, int high, Estatisticas *stats) {
+    return hoare(array, low, high, array[low], stats);
 }
 
-int hoareMediana(int *array, int low, int high, int *trades)
-{
+int hoareMediana(int *array, int low, int high, Estatisticas *stats) {
     if (low >= high) return low;
     int mid = low + (high - low) / 2;
     int pivotIndex = mediana(array, low, mid, high);
-    (*trades)++;
-    return hoare(array, low, high, array[pivotIndex], trades);
+    return hoare(array, low, high, array[pivotIndex], stats);
 }
 
-int hoareRandom(int *array, int low, int high, int *trades)
-{
-    int pivotIndex = pseudoRandom(array, low, high);
-    return hoare(array, low, high, array[pivotIndex], trades);
+int hoareRandom(int *array, int low, int high, Estatisticas *stats) {
+    int pivotIndex = pseudoRandom(low, high);
+    return hoare(array, low, high, array[pivotIndex], stats);
 }
 
-void quickSort(int *array, int low, int high, int method, int *trades)
-{
-    (*trades)++;
-    if (low < high) {
+// Procedimento Quick Sort
+void quickSort(int *array, int low, int high, int method, Estatisticas *stats) {
+    if (stats) stats->chamadas_recursivas++;
+    
+    if(low < high) {
+        if (stats) stats->comparacoes++;
+        
         int mid;
-        switch (method) {
-            case 1: mid = lomutoPadrao(array, low, high, trades); break;
-            case 2: mid = lomutoMediana(array, low, high, trades); break;
-            case 3: mid = lomutoRandom(array, low, high, trades); break;
-            case 4: mid = hoarePadrao(array, low, high, trades); break;
-            case 5: mid = hoareMediana(array, low, high, trades); break;
-            case 6: mid = hoareRandom(array, low, high, trades); break;
-            default: mid = lomutoPadrao(array, low, high, trades);
+        switch(method) {
+            case 1: mid = lomutoPadrao(array, low, high, stats); break;
+            case 2: mid = lomutoMediana(array, low, high, stats); break;
+            case 3: mid = lomutoRandom(array, low, high, stats); break;
+            case 4: mid = hoarePadrao(array, low, high, stats); break;
+            case 5: mid = hoareMediana(array, low, high, stats); break;
+            case 6: mid = hoareRandom(array, low, high, stats); break;
+            default: mid = lomutoPadrao(array, low, high, stats);
         }
 
-        if (method >= 4) { // Hoare partition retorna j
-            quickSort(array, low, mid, method, trades);
-            quickSort(array, mid + 1, high, method, trades);
-        } else { // Lomuto
-            quickSort(array, low, mid - 1, method, trades);
-            quickSort(array, mid + 1, high, method, trades);
+        if(method >= 4) {
+            quickSort(array, low, mid, method, stats);
+            quickSort(array, mid + 1, high, method, stats);
+        } else {
+            quickSort(array, low, mid - 1, method, stats);
+            quickSort(array, mid + 1, high, method, stats);
         }
     }
 }
 
-int rodarTeste(int *dadosOriginais, int *arrayCopia, int tamanho, int method) {
-    int trades = 0;
-    for (int i = 0; i < tamanho; i++) arrayCopia[i] = dadosOriginais[i];
-    if (tamanho > 1) quickSort(arrayCopia, 0, tamanho - 1, method, &trades);
-    return trades;
+// Função para comparar métodos para ordenação
+int compararMetodos(const void *a, const void *b) {
+    const MetodoResultado *ma = (const MetodoResultado *)a;
+    const MetodoResultado *mb = (const MetodoResultado *)b;
+    return ma->trocas - mb->trocas;
 }
 
-SetArrays lerDados(FILE* arquivo)
-{
+SetArrays lerDados(FILE* arquivo) {
     SetArrays resultado = {NULL, 0};
     int qtdArrays;
-    fscanf(arquivo, "%d", &qtdArrays);
-    if (qtdArrays <= 0) return resultado;
-
-    Array *arrays = malloc(sizeof(Array) * qtdArrays);
-    if (!arrays)
-    {
-        fprintf(stderr, "Erro de alocação.\n");
+    
+    if (fscanf(arquivo, "%d", &qtdArrays) != 1 || qtdArrays <= 0) {
         return resultado;
     }
 
-    // Lendo os arrays
+    Array *arrays = malloc(sizeof(Array) * qtdArrays);
+    if (!arrays) {
+        return resultado;
+    }
+
     for (int i = 0; i < qtdArrays; ++i) {
-        // Lendo o tamanho do array
-        fscanf(arquivo, "%d", &arrays[i].size);
-        // Alocando memória para o array
-        if (arrays[i].size > 0)
-        {
+        if (fscanf(arquivo, "%d", &arrays[i].size) != 1 || arrays[i].size < 0) {
+            arrays[i].array = NULL;
+            continue;
+        }
+        
+        if (arrays[i].size > 0) {
             arrays[i].array = malloc(sizeof(int) * arrays[i].size);
             if (!arrays[i].array) {
-                fprintf(stderr, "Erro de alocação.\n");
-                for (int k = 0; k < i; ++k) if (arrays[k].array) free(arrays[k].array);
+                for (int k = 0; k <= i; ++k) {
+                    if (arrays[k].array) free(arrays[k].array);
+                }
                 free(arrays);
                 return resultado;
             }
@@ -180,10 +213,10 @@ SetArrays lerDados(FILE* arquivo)
             arrays[i].array = NULL;
         }
 
-        // Lendo os elementos do array
-        for (int j = 0; j < arrays[i].size; ++j)
-        {
-            fscanf(arquivo, "%d", &arrays[i].array[j]);
+        for (int j = 0; j < arrays[i].size; ++j) {
+            if (fscanf(arquivo, "%d", &arrays[i].array[j]) != 1) {
+                arrays[i].array[j] = 0;
+            }
         }
     }
 
@@ -192,56 +225,89 @@ SetArrays lerDados(FILE* arquivo)
     return resultado;
 }
 
-int main(int argc, char *argv[])
-{
+void liberarSetArrays(SetArrays *set) {
+    if (set && set->arrays) {
+        for (int i = 0; i < set->qtdArrays; ++i) {
+            if (set->arrays[i].array) {
+                free(set->arrays[i].array);
+            }
+        }
+        free(set->arrays);
+        set->arrays = NULL;
+        set->qtdArrays = 0;
+    }
+}
+
+int main(int argc, char *argv[]) {
     if (argc != 3) {
         printf("Uso: %s <arquivo_entrada> <arquivo_saida>\n", argv[0]);
         return 1;
     }
 
-    // Abrindo arquivos
+    srand(time(NULL));
+
     FILE* input = fopen(argv[1], "r");
     FILE* output = fopen(argv[2], "w");
-
-    SetArrays dadosLidos = lerDados(input);
-
-    ResultadoTeste resultados[6] = {
-        {"LP", 0, 1},
-        {"LM", 0, 2},
-        {"LA", 0, 3},
-        {"HP", 0, 4},
-        {"HM", 0, 5},
-        {"HA", 0, 6}
-    };
     
-    for (int i = 0; i < dadosLidos.qtdArrays; ++i) {
-        int tamanho = dadosLidos.arrays[i].size;
-        int *arrayCopia = malloc(sizeof(int) * tamanho);
-        if (!arrayCopia) {
-            fprintf(stderr, "Erro de alocação.\n");
-            break;
-        }
-
-        for (int j = 0; j < 6; ++j) {
-            resultados[j].trocas = rodarTeste(dadosLidos.arrays[i].array, arrayCopia, tamanho, resultados[j].id);
-        }
-
-        fprintf(output, "Array %d:\n", i + 1);
-        for (int j = 0; j < 6; ++j) {
-            fprintf(output, "%s: %d trocas\n", resultados[j].nome, resultados[j].trocas);
-        }
-        fprintf(output, "\n");
-
-        free(arrayCopia);
+    if (!input || !output) {
+        printf("Erro ao abrir arquivos.\n");
+        return 1;
     }
 
-    // Fechando arquivos
+    SetArrays dadosLidos = lerDados(input);
+    
+    if (dadosLidos.qtdArrays == 0) {
+        printf("Nenhum array válido encontrado no arquivo.\n");
+        fclose(input);
+        fclose(output);
+        return 1;
+    }
+
+    // Nomes dos métodos na ordem dos casos (1-6)
+    char nomesMetodos[6][3] = {"LP", "LM", "LA", "HP", "HM", "HA"};
+    
+    for (int i = 0; i < dadosLidos.qtdArrays; i++) {
+        MetodoResultado resultados[6];
+        
+        for (int method = 0; method < 6; method++) {
+            Estatisticas stats = {0, 0, 0};
+            
+            int* arrayTemp = malloc(sizeof(int) * dadosLidos.arrays[i].size);
+            for (int j = 0; j < dadosLidos.arrays[i].size; ++j) {
+                arrayTemp[j] = dadosLidos.arrays[i].array[j];
+            }
+            
+            quickSort(arrayTemp, 0, dadosLidos.arrays[i].size - 1, method + 1, &stats);
+            
+            strcpy(resultados[method].nome, nomesMetodos[method]);
+            resultados[method].trocas = stats.trocas;
+            
+            free(arrayTemp);
+        }
+        
+        // Ordenar métodos pelo número de trocas (menor para maior)
+        qsort(resultados, 6, sizeof(MetodoResultado), compararMetodos);
+        
+        // Gerar output no formato especificado
+        fprintf(output, "[%d]:", dadosLidos.arrays[i].size);
+        for (int m = 0; m < 6; m++) {
+            fprintf(output, "%s(%d)", resultados[m].nome, resultados[m].trocas);
+            if (m < 5) fprintf(output, ",");
+        }
+        fprintf(output, "\n");
+        
+        // Também imprimir no console para verificação
+        printf("[%d]:", dadosLidos.arrays[i].size);
+        for (int m = 0; m < 6; m++) {
+            printf("%s(%d)", resultados[m].nome, resultados[m].trocas);
+            if (m < 5) printf(",");
+        }
+        printf("\n");
+    }
+
     fclose(input);
     fclose(output);
+    liberarSetArrays(&dadosLidos);
 
-    // Liberando memória alocada
-    free(dadosLidos.arrays);
-
-    // Finalizando o programa
     return 0;
 }
