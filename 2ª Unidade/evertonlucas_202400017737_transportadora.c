@@ -1,26 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <time.h>
 #include <math.h>
-
-/*
-Input de exemplo:
-2
-AAA1234 50 100
-BBB5C67 2000 12000
-5
-AB111222333CD 49.99 2 1
-EF444555666GH 5000.01 1234 7000
-IJ777888999KL 100 49 10
-MN000111222OP 65.01 3 125
-QR333444555ST 200.01 13 4875
-
-Output esperado:
-[AAA1234]R$100.00,49KG(98%),10L(10%)->IJ777888999KL
-[BBB5C67]R$5265.03,1250KG(63%),12000L(100%)->EF444555666GH,MN000111222OP,QR333444555ST
-PENDENTE:R$49.99,2KG,1L->AB111222333CD
-*/
 
 typedef struct {
     char codigo[14];
@@ -157,7 +138,6 @@ ItemArray mochila3D(Item *itens, int qtdItens, int capPeso, int capVolume)
 
     return itensAdd;
 }
-
 
 // Procedimento para realizar um somatório
 void somatorio(Item *itens, int qtdItens, int *somatorioPeso, int *somatorioVolume)
@@ -311,8 +291,6 @@ ItemArray lerDadosItem(FILE* arquivo)
 }
 
 int main(int argc, char *argv[]) {
-    // Inicia a contagem do tempo
-    clock_t inicio = clock();
     // Verificação dos argumentos
     if (argc != 3)
     {
@@ -331,17 +309,10 @@ int main(int argc, char *argv[]) {
 
     // Processamento dos dados e escrita no arquivo de saída
     processarDados(dadosVeiculos, dadosItens, output);
-
     
     // Liberando memória alocada
     free(dadosVeiculos.veiculos);
     free(dadosItens.itens);
-
-    // Finaliza a contagem do tempo
-    clock_t fim = clock();
-    // Calcula o tempo de execução em segundos
-    double tempoExecucao = (double)(fim - inicio) / CLOCKS_PER_SEC;
-    fprintf(output, "Tempo de execucao: %f segundos\n", tempoExecucao);
     
     // Fechando arquivos
     fclose(input);
