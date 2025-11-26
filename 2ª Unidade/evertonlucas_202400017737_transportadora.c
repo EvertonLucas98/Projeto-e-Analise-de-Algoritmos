@@ -2,6 +2,24 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+#include <stdbool.h>
+#include <float.h>
+
+/*
+2
+AAA1234 50 100
+BBB5C67 2000 12000
+5
+AB111222333CD 49.99 2 1
+EF444555666GH 5000.01 1234 7000
+IJ777888999KL 100 49 10
+MN000111222OP 65.01 3 125
+QR333444555ST 200.01 13 4875
+
+[AAA1234]R$100.00,49KG(98%),10L(10%)->IJ777888999KL
+[BBB5C67]R$5265.03,1250KG(63%),12000L(100%)->EF444555666GH,MN000111222OP,QR333444555ST
+PENDENTE:R$49.99,2KG,1L->AB111222333CD
+*/
 
 typedef struct {
     char codigo[14];
@@ -27,9 +45,17 @@ typedef struct {
 
 double ***Matriz3d = NULL;
 
-// Função que retorna o maior valor entre dois valores
-double max(double a, double b) {
-    return (a > b) ? a : b;
+
+bool isEqual(double a, double b) {
+    // Tolerância relativa
+    const double toleranciaRelativa = 1e-9;
+    
+    // Caso de igualdade exata
+    if (a == b) return true;
+
+    // Cálculo da tolerância baseada no maior valor absoluto
+    double max_val = fmax(fabs(a), fabs(b));
+    return fabs(a - b) < max_val * toleranciaRelativa;
 }
 
 // Função que aloca uma matriz 3D de doubles
@@ -61,7 +87,7 @@ void preencherTabela3D(double ***matriz3D, Item *itens, int qtdItens, int capPes
                     matriz3D[i][j][k] = 0;
                 else if (itens[i-1].peso <= j && itens[i-1].volume <= k)
                 {
-                    matriz3D[i][j][k] = max(matriz3D[i-1][j][k], matriz3D[i-1][j - itens[i-1].peso][k - itens[i-1].volume] + itens[i-1].valor);
+                    matriz3D[i][j][k] = fmax(matriz3D[i-1][j][k], matriz3D[i-1][j - itens[i-1].peso][k - itens[i-1].volume] + itens[i-1].valor);
                 }
                 else
                     matriz3D[i][j][k] = matriz3D[i-1][j][k];
@@ -94,7 +120,7 @@ ItemArray mochila3D(Item *itens, int qtdItens, int capPeso, int capVolume)
         if (auxPeso < 0 || auxVolume < 0)
             break;
         // Inclui o item se o valor atual for diferente do valor na linha anterior
-        if (Matriz3d[temp][auxPeso][auxVolume] != Matriz3d[temp-1][auxPeso][auxVolume])
+        if (!isEqual(Matriz3d[temp][auxPeso][auxVolume], Matriz3d[temp-1][auxPeso][auxVolume]))
         {
             // Adiciona o item ao array de itens adicionados, sem substituir o anterior
             itensAdd.itens[itensAdd.qtd++] = itens[temp-1];
@@ -131,7 +157,7 @@ int calcularPorcentagens(int valorParcial, int valorTotal)
 // Procedimento para escrever a saída no arquivo
 void escreverOutput(FILE* output, char placa[], double valorMaximo, int somaPeso, int porcentagemPeso, int somaVolume, int porcentagemVolume, ItemArray itensAdd)
 {
-    fprintf(output, "[%s]:%.2lf,%d(%d%%),%dL(%d%%)->", placa, valorMaximo, somaPeso, porcentagemPeso, somaVolume, porcentagemVolume);
+    fprintf(output, "[%s]:%.2lf,%dKG(%d%%),%dL(%d%%)->", placa, valorMaximo, somaPeso, porcentagemPeso, somaVolume, porcentagemVolume);
     if (valorMaximo == 0)
         fprintf(output, "\n");
     else
