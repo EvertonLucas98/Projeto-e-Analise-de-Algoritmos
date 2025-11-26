@@ -4,6 +4,7 @@
 #include <math.h>
 #include <stdbool.h>
 #include <float.h>
+#include <time.h>
 
 /*
 2
@@ -43,20 +44,8 @@ typedef struct {
     int qtd;
 } VeiculosArray;
 
+// Matriz 3D global para uso na programação dinâmica
 double ***Matriz3d = NULL;
-
-
-bool isEqual(double a, double b) {
-    // Tolerância relativa
-    const double toleranciaRelativa = 1e-9;
-    
-    // Caso de igualdade exata
-    if (a == b) return true;
-
-    // Cálculo da tolerância baseada no maior valor absoluto
-    double max_val = fmax(fabs(a), fabs(b));
-    return fabs(a - b) < max_val * toleranciaRelativa;
-}
 
 // Função que aloca uma matriz 3D de doubles
 double*** alocarMatriz3D(int qtdItens, int capPeso, int capVolume)
@@ -120,7 +109,7 @@ ItemArray mochila3D(Item *itens, int qtdItens, int capPeso, int capVolume)
         if (auxPeso < 0 || auxVolume < 0)
             break;
         // Inclui o item se o valor atual for diferente do valor na linha anterior
-        if (!isEqual(Matriz3d[temp][auxPeso][auxVolume], Matriz3d[temp-1][auxPeso][auxVolume]))
+        if (Matriz3d[temp][auxPeso][auxVolume] != Matriz3d[temp-1][auxPeso][auxVolume])
         {
             // Adiciona o item ao array de itens adicionados, sem substituir o anterior
             itensAdd.itens[itensAdd.qtd++] = itens[temp-1];
@@ -296,6 +285,8 @@ ItemArray lerDadosItem(FILE* arquivo)
 }
 
 int main(int argc, char *argv[]) {
+    // Medição de tempo de execução
+    clock_t start = clock();
     // Verificação dos argumentos
     if (argc != 3)
     {
@@ -315,6 +306,11 @@ int main(int argc, char *argv[]) {
     // Processamento dos dados e escrita no arquivo de saída
     processarDados(dadosVeiculos, dadosItens, output);
     
+    // Medição de tempo de execução
+    clock_t end = clock();
+    double cpu_time_used = ((double)(end - start)) / CLOCKS_PER_SEC;
+    printf("Tempo de execucao: %.6f segundos\n", cpu_time_used);
+
     // Fechando arquivos
     fclose(input);
     fclose(output);
