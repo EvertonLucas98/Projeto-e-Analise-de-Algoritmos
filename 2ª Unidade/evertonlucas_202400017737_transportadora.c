@@ -2,7 +2,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
-#include <stdbool.h>
 #include <float.h>
 #include <time.h>
 
@@ -64,25 +63,67 @@ double*** alocarMatriz3D(int qtdItens, int capPeso, int capVolume)
 // Função que preenche a tabela 3D para o problema da mochila
 void preencherTabela3D(double ***matriz3D, Item *itens, int qtdItens, int capPeso, int capVolume)
 {
-    // Preenche o restante da tabela
-    for (int i = 0; i <= qtdItens; i++)
+    // Aloca arrays auxiliares para valores, pesos e volumes
+    double *valores = malloc(qtdItens * sizeof(double));
+    int *pesos = malloc(qtdItens * sizeof(int));
+    int *volumes = malloc(qtdItens * sizeof(int));
+    
+    // Preenche os arrays auxiliares
+    for (int i = 0; i < qtdItens; i++) {
+        valores[i] = itens[i].valor;
+        pesos[i] = itens[i].peso;
+        volumes[i] = itens[i].volume;
+    }
+
+    // Inicializar bordas primeiro
+    for (int j = 0; j <= capPeso; j++) {
+        for (int k = 0; k <= capVolume; k++) {
+            matriz3D[0][j][k] = 0;
+        }
+    }
+
+    for (int i = 0; i <= qtdItens; i++) {
+        for (int j = 0; j <= capPeso; j++) {
+            matriz3D[i][j][0] = 0;
+        }
+        for (int k = 0; k <= capVolume; k++) {
+            matriz3D[i][0][k] = 0;
+        }
+    }
+
+    // Preenche a tabela 3D usando programação dinâmica
+    for (int i = 1; i <= qtdItens; i++)
     {
-        for (int j = 0; j <= capPeso; j++)
+        int index = i-1; // Índice do item atual
+        int pesoItem = pesos[index]; // Peso do item atual
+        int volumeItem = volumes[index]; // Volume do item atual
+        double valorItem = valores[index]; // Valor do item atual
+        
+        // Preenche a camada i da matriz 3D
+        for (int j = 1; j <= capPeso; j++)
         {
-            for (int k = 0; k <= capVolume; k++)
+            // Preenche a linha j da camada i da matriz 3D
+            double *linhaAtual = matriz3D[i][j];
+            double *linhaAnterior = matriz3D[i-1][j];
+            // Preenche a coluna k da linha j da camada i da matriz 3D
+            for (int k = 1; k <= capVolume; k++)
             {
-                // Se não há itens ou a capacidade é zero, o valor máximo é zero
-                if (i == 0 || j == 0 || k == 0)
-                    matriz3D[i][j][k] = 0;
-                else if (itens[i-1].peso <= j && itens[i-1].volume <= k)
+                // Verifica se o item pode ser incluído
+                if (pesoItem <= j && volumeItem <= k)
                 {
-                    matriz3D[i][j][k] = fmax(matriz3D[i-1][j][k], matriz3D[i-1][j - itens[i-1].peso][k - itens[i-1].volume] + itens[i-1].valor);
+                    double comItem = matriz3D[i-1][j - pesoItem][k - volumeItem] + valorItem;
+                    linhaAtual[k] = fmax(linhaAnterior[k], comItem);
+                } else // Item não pode ser incluído
+                {
+                    linhaAtual[k] = linhaAnterior[k];
                 }
-                else
-                    matriz3D[i][j][k] = matriz3D[i-1][j][k];
             }
         }
     }
+    
+    free(valores);
+    free(pesos);
+    free(volumes);
 }
 
 // Função que resolve o problema da mochila usando programação dinâmica
