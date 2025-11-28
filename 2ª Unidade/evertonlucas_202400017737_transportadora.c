@@ -370,7 +370,6 @@ int main(int argc, char *argv[]) {
     clock_t end = clock();
     double cpu_time_used = ((double)(end - start)) / CLOCKS_PER_SEC;
     printf("\nTempo de execucao: %.6f segundos\n\n", cpu_time_used);
-    fprintf(output, "\nTempo de execucao: %.6f segundos\n", cpu_time_used);
 
     // Fechando arquivos
     fclose(input);
