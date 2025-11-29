@@ -30,6 +30,64 @@ typedef struct {
     uint32_t qtd;
 } VeiculosArray;
 
+/*
+2
+AAA1234 50 100
+BBB5C67 2000 12000
+5
+AB111222333CD 49.99 2 1
+EF444555666GH 5000.01 1234 7000
+IJ777888999KL 100 49 10
+MN000111222OP 65.01 3 125
+QR333444555ST 200.01 13 4875
+
+[AAA1234]R$100.00,49KG(98%),10L(10%)->IJ777888999KL
+[BBB5C67]R$5265.03,1250KG(63%),12000L(100%)->EF444555666GH,MN000111222OP,QR333444555ST
+PENDENTE:R$49.99,2KG,1L->AB111222333CD
+
+5
+TRK0001 500 100
+TRK0A23 200 120
+LOG1234 150 800
+CMA9999 350 200
+XPT4567 400 600
+35
+AB111222333CD 49.99 2 1
+EF444555666GH 5000.01 123 700
+IJ777888999KL 100.00 49 10
+MN000111222OP 65.01 3 125
+QR333444555ST 200.01 13 48
+UV999888777WX 9.99 1 1
+YZ123456789AB 249.50 15 20
+CD987654321EF 1200.00 95 400
+GH135791113KL 15.75 5 2
+LM246802468NO 75.00 10 8
+OP112233445QR 999.99 80 350
+ST556677889UV 0.99 1 1
+WX667788990YZ 350.20 30 15
+ZA101010101BC 15.00 7 4
+BC202020202DE 45.45 20 15
+DE303030303FG 2500.00 180 900
+FG404040404HI 5.50 2 1
+HI505050505JK 130.30 60 30
+JK606060606LM 799.99 65 32
+LM707070707NO 22.22 9 6
+NO808080808PQ 410.00 35 18
+PQ909090909RS 60.00 12 9
+RS121212121TU 19.95 4 3
+TU131313131VW 275.75 220 110
+VW141414141XY 1500.50 12 60
+XY151515151ZA 5.00 1 1
+ZA161616161BC 89.90 18 14
+BC171717171DE 49.00 11 7
+DE181818181FG 600.00 48 240
+FG191919191HI 39.99 6 5
+HI202020202JK 999.00 90 42
+JK212121212LM 12.34 3 2
+LM222222222NO 450.45 40 20
+NO232323232PQ 30.00 8 6
+*/
+
 // Aloca matriz 3D
 float*** alocarMatriz3D(uint32_t qtdItens, uint32_t capPeso, uint32_t capVolume)
 {
@@ -84,26 +142,30 @@ void preencherTabela3D(float ***matriz3D, Item *itens, uint32_t qtdItens, uint32
 }
 
 // Backtracking: marca itens usados e retorna valor máximo
-float backtracking(float ***matriz, Item *itens, uint32_t qtdItens, uint32_t capPeso, uint32_t capVolume)
+float backtracking(ItemArray itens, uint32_t qtdItens, uint32_t capPeso, uint32_t capVolume)
 {
+    // Aloca matriz Principal 3D
+    float ***matriz3D = alocarMatriz3D(qtdItens, capPeso, capVolume);
+    // Preenche tabela para os itens remanescentes, com capacidades maxPeso x maxVolume
+    preencherTabela3D(matriz3D, itens.itens, qtdItens, capPeso, capVolume);
     if (qtdItens == 0) return 0.0f;
     int auxPeso = (int)capPeso;
     int auxVolume = (int)capVolume;
     uint32_t temp = qtdItens;
 
-    float valorMaximo = matriz[qtdItens][capPeso][capVolume];
+    float valorMaximo = matriz3D[qtdItens][capPeso][capVolume];
 
     while (temp > 0)
     {
         // Se auxPeso/auxVolume forem negativos, não há mais itens a considerar
         if (auxPeso < 0 || auxVolume < 0) break;
 
-        if (matriz[temp][auxPeso][auxVolume] != matriz[temp-1][auxPeso][auxVolume])
+        if (matriz3D[temp][auxPeso][auxVolume] != matriz3D[temp-1][auxPeso][auxVolume])
         {
             // marca e imprime antes de decrementar temp
-            itens[temp-1].usado = true;
-            auxPeso -= (int)itens[temp-1].peso;
-            auxVolume -= (int)itens[temp-1].volume;
+            itens.itens[temp-1].usado = true;
+            auxPeso -= (int)itens.itens[temp-1].peso;
+            auxVolume -= (int)itens.itens[temp-1].volume;
             temp--;
         }
         else
@@ -173,70 +235,45 @@ uint32_t removerItensUsados(Item *itens, uint32_t qtd)
 // Procedimento principal de processamento
 void processarDados(VeiculosArray veiculos, ItemArray itens, FILE* output)
 {
-    Item *listaItens = itens.itens;
-    uint32_t qtdItens = itens.qtd;
-
-    // Determina as maiores capacidades entre os veículos restantes (inclusive o atual)
-    uint32_t maxPeso = 0, maxVolume = 0;
-    for (uint32_t i = 0; i < veiculos.qtd; i++)
-    {
-        if (veiculos.veiculos[i].peso > maxPeso) maxPeso = veiculos.veiculos[i].peso;
-        if (veiculos.veiculos[i].volume > maxVolume) maxVolume = veiculos.veiculos[i].volume;
-    }
-
-    // Aloca matriz Principal 3D
-    float ***matrizPrincipal = alocarMatriz3D(qtdItens, maxPeso, maxVolume);
-    // Preenche tabela para os itens remanescentes, com capacidades maxPeso x maxVolume
-    preencherTabela3D(matrizPrincipal, listaItens, qtdItens, maxPeso, maxVolume);
-
     for (uint32_t i = 0; i < veiculos.qtd; i++)
     {
         uint32_t capP = veiculos.veiculos[i].peso;
         uint32_t capV = veiculos.veiculos[i].volume;
-        float valorMaximo = backtracking(matrizPrincipal, listaItens, qtdItens, capP, capV);
+        float valorMaximo = backtracking(itens, itens.qtd, capP, capV);
         uint32_t somaPeso = 0, somaVolume = 0;
-        somatorio(listaItens, qtdItens, &somaPeso, &somaVolume, capP, capV);
+        somatorio(itens.itens, itens.qtd, &somaPeso, &somaVolume, capP, capV);
 
         uint32_t porcentagemPeso = calcularPorcentagens(somaPeso, capP);
         uint32_t porcentagemVolume = calcularPorcentagens(somaVolume, capV);
 
-        ItemArray tmpArr = { listaItens, qtdItens, 0.0f };
+        ItemArray tmpArr = { itens.itens, itens.qtd, 0.0f };
         escreverOutput(output, veiculos.veiculos[i].placa, valorMaximo, somaPeso, porcentagemPeso, somaVolume, porcentagemVolume, tmpArr);
 
         // Remove itens usados (compacta array). Atualiza qtdItens.
-        uint32_t novaQtd = removerItensUsados(listaItens, qtdItens);
-        qtdItens = novaQtd;
+        uint32_t novaQtd = removerItensUsados(itens.itens, itens.qtd);
+        itens.qtd = novaQtd;
     }
 
     // Imprime pendente se houver
-    if (qtdItens > 0)
+    if (itens.qtd > 0)
     {
         float somaValor = 0.0f;
         uint32_t somaPeso = 0, somaVolume = 0;
-        for (uint32_t i = 0; i < qtdItens; ++i)
+        for (uint32_t i = 0; i < itens.qtd; ++i)
         {
-            somaValor += listaItens[i].valor;
-            somaPeso += listaItens[i].peso;
-            somaVolume += listaItens[i].volume;
+            somaValor += itens.itens[i].valor;
+            somaPeso += itens.itens[i].peso;
+            somaVolume += itens.itens[i].volume;
         }
 
         fprintf(output, "PENDENTE:R$%.2f,%dKG,%dL->", somaValor, somaPeso, somaVolume);
-        for (uint32_t i = 0; i < qtdItens; ++i)
+        for (uint32_t i = 0; i < itens.qtd; ++i)
         {
-            fprintf(output, "%s", listaItens[i].codigo);
-            if (i + 1 < qtdItens) fprintf(output, ",");
+            fprintf(output, "%s", itens.itens[i].codigo);
+            if (i + 1 < itens.qtd) fprintf(output, ",");
         }
         fprintf(output, "\n");
     }
-
-    // libera matriz
-    for (uint32_t i = 0; i <= qtdItens; ++i)
-    {
-        for (uint32_t j = 0; j <= maxPeso; ++j)
-            free(matrizPrincipal[i][j]);
-        free(matrizPrincipal[i]);
-    }
-    free(matrizPrincipal);
 }
 
 VeiculosArray lerDadosVeiculo(FILE* arquivo)
