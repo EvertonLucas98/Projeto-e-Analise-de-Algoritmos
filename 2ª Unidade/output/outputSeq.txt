@@ -1,0 +1,17 @@
+Doenca: ABCDE
+	Subcadeias:
+		AAA
+		AAT
+		AAAG
+Doenca: XY1WZ2AB
+	Subcadeias:
+		TTTTTTGGGG
+Doenca: H1N1
+	Subcadeias:
+		ACTG
+		AACCGGTT
+		AATAAT
+		AAAAAAAAGA
+Doenca: HUEBR
+	Subcadeias:
+		CATAGGGATT

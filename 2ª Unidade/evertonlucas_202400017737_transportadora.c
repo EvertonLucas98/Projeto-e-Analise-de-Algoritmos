@@ -1,9 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include <math.h>
 #include <float.h>
-#include <time.h>
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -29,64 +27,6 @@ typedef struct {
     Veiculo *veiculos;
     uint32_t qtd;
 } VeiculosArray;
-
-/*
-2
-AAA1234 50 100
-BBB5C67 2000 12000
-5
-AB111222333CD 49.99 2 1
-EF444555666GH 5000.01 1234 7000
-IJ777888999KL 100 49 10
-MN000111222OP 65.01 3 125
-QR333444555ST 200.01 13 4875
-
-[AAA1234]R$100.00,49KG(98%),10L(10%)->IJ777888999KL
-[BBB5C67]R$5265.03,1250KG(63%),12000L(100%)->EF444555666GH,MN000111222OP,QR333444555ST
-PENDENTE:R$49.99,2KG,1L->AB111222333CD
-
-5
-TRK0001 500 100
-TRK0A23 200 120
-LOG1234 150 800
-CMA9999 350 200
-XPT4567 400 600
-35
-AB111222333CD 49.99 2 1
-EF444555666GH 5000.01 123 700
-IJ777888999KL 100.00 49 10
-MN000111222OP 65.01 3 125
-QR333444555ST 200.01 13 48
-UV999888777WX 9.99 1 1
-YZ123456789AB 249.50 15 20
-CD987654321EF 1200.00 95 400
-GH135791113KL 15.75 5 2
-LM246802468NO 75.00 10 8
-OP112233445QR 999.99 80 350
-ST556677889UV 0.99 1 1
-WX667788990YZ 350.20 30 15
-ZA101010101BC 15.00 7 4
-BC202020202DE 45.45 20 15
-DE303030303FG 2500.00 180 900
-FG404040404HI 5.50 2 1
-HI505050505JK 130.30 60 30
-JK606060606LM 799.99 65 32
-LM707070707NO 22.22 9 6
-NO808080808PQ 410.00 35 18
-PQ909090909RS 60.00 12 9
-RS121212121TU 19.95 4 3
-TU131313131VW 275.75 220 110
-VW141414141XY 1500.50 12 60
-XY151515151ZA 5.00 1 1
-ZA161616161BC 89.90 18 14
-BC171717171DE 49.00 11 7
-DE181818181FG 600.00 48 240
-FG191919191HI 39.99 6 5
-HI202020202JK 999.00 90 42
-JK212121212LM 12.34 3 2
-LM222222222NO 450.45 40 20
-NO232323232PQ 30.00 8 6
-*/
 
 // Aloca matriz 3D
 float*** alocarMatriz3D(uint32_t qtdItens, uint32_t capPeso, uint32_t capVolume)
@@ -287,9 +227,7 @@ VeiculosArray lerDadosVeiculo(FILE* arquivo)
     if (!dadosVeiculo) return veiculos;
 
     for (uint32_t i = 0; i < n; ++i)
-    {
         fscanf(arquivo, "%15s %u %u", dadosVeiculo[i].placa, &dadosVeiculo[i].peso, &dadosVeiculo[i].volume);
-    }
 
     veiculos.veiculos = dadosVeiculo;
     veiculos.qtd = n;
@@ -317,33 +255,31 @@ ItemArray lerDadosItem(FILE* arquivo)
     return itens;
 }
 
-int main(int argc, char *argv[]) {
-    clock_t start = clock();
-
+int main(int argc, char *argv[])
+{
+    // Verificação de argumentos
     if (argc != 3)
     {
         printf("Uso: %s <arquivo_entrada> <arquivo_saida>\n", argv[0]);
         return 1;
     }
 
+    // Abrindo os arquivos
     FILE* input = fopen(argv[1], "r");
-    if (!input) { perror("Erro abrindo arquivo de entrada"); return 1; }
     FILE* output = fopen(argv[2], "w");
-    if (!output) { perror("Erro abrindo arquivo de saida"); fclose(input); return 1; }
 
+    // Lendo os dados
     VeiculosArray dadosVeiculos = lerDadosVeiculo(input);
     ItemArray dadosItens = lerDadosItem(input);
 
+    // Processando os dados
     processarDados(dadosVeiculos, dadosItens, output);
 
-    clock_t end = clock();
-    float cpu_time_used = ((float)(end - start)) / CLOCKS_PER_SEC;
-    printf("\nTempo de execucao: %.6f segundos\n\n", cpu_time_used);
-
+    // Fechando os arquivos
     fclose(input);
     fclose(output);
 
-    // libera memoria
+    // Liberando a memória
     free(dadosVeiculos.veiculos);
     free(dadosItens.itens);
 
