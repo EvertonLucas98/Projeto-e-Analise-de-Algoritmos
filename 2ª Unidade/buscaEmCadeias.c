@@ -54,12 +54,10 @@ void calcular_tabela(int32_t* k, char* P)
     for(int32_t i = 1, j = -1; i < strlen(P); i++) {
         // Prefixo e sufixo diferentes
         while(j >= 0 && P[j + 1] != P[i])
-            // Retorno de estado
-            j = k[j];
+            j = k[j]; // Retorno de estado
         // Combinação de prefixo e sufixo
         if(P[j + 1] == P[i])
-            // Avanço de estado
-            j++;
+            j++; // Avanço de estado
         // Atualização da transição do estado
         k[i] = j;
     }
