@@ -22,7 +22,7 @@ H1N1->25%
 */
 
 // Define uma constante para o tamanho máximo das strings
-#define MAX_STR 20 
+#define MAX_STR 100 
 
 typedef struct Subcadeia
 {
@@ -50,7 +50,7 @@ DoencaArray lerArquivo(FILE* arquivo)
     int qtdDoencas;
     
     fscanf(arquivo, "%u", &doencasArray.tamanhoSubcadeias);
-    fscanf(arquivo, "%40s", doencasArray.dna);
+    fscanf(arquivo, "%s", doencasArray.dna);
     fscanf(arquivo, "%u", &qtdDoencas);
 
     // Alocando memória para o array de doenças
@@ -60,12 +60,12 @@ DoencaArray lerArquivo(FILE* arquivo)
     for (int i = 0; i < qtdDoencas; ++i)
     {
         // Lendo nome da doença e quantidade de subcadeias
-        fscanf(arquivo, "%20s %u", doencasArray.doencas[i].nome, &doencasArray.doencas[i].qtdSubcadeias);
+        fscanf(arquivo, "%s %u", doencasArray.doencas[i].nome, &doencasArray.doencas[i].qtdSubcadeias);
         // Alocando memória para o array de subcadeias
         doencasArray.doencas[i].subcadeias = (Subcadeia*) malloc(doencasArray.doencas[i].qtdSubcadeias * sizeof(Subcadeia));
         // Lendo cada subcadeia
         for (int j = 0; j < doencasArray.doencas[i].qtdSubcadeias; ++j)
-            fscanf(arquivo, "%20s", doencasArray.doencas[i].subcadeias[j].subcadeia);
+            fscanf(arquivo, "%s", doencasArray.doencas[i].subcadeias[j].subcadeia);
     }
 
     // Preenchendo o struct DoencaArray
@@ -77,6 +77,7 @@ DoencaArray lerArquivo(FILE* arquivo)
 // Procedimento para computar o array LPS (Longest Prefix Suffix)
 void computarLPS(const char* padrao, int M, int* lps)
 {
+    if (M <= 0) return;
     int len = 0;
     lps[0] = 0;
     int i = 1;
@@ -105,12 +106,11 @@ void computarLPS(const char* padrao, int M, int* lps)
 // Função KMP para buscar ocorrências de um padrão em uma string DNA
 int buscarKMP(const char* DNA, const char* padrao, int L)
 {
+    if (!DNA || !padrao) return 0;
     int N = strlen(DNA); // Tamanho do DNA
     int M = L; // Tamanho do padrão (subcadeia)
+    if (M == 0 || N == 0 || N < M) return 0;
     int ocorrencias = 0; // Contador de ocorrências encontradas
-
-    // Caso base: se o padrão for maior que o DNA, não há ocorrências
-    if (N < M) return 0;
 
     // Alocando memória para o array LPS
     int* lps = (int*)malloc(M * sizeof(int));
@@ -177,7 +177,7 @@ int calcularCompatibilidadeGene(const char* DNA, const char* gene, int L)
     // Calcula a porcentagem de compatibilidade
     double percent = round(((double)N_Detectadas / N_TotalSub)*10)*10;
     
-    return (int)round(percent); 
+    return percent;
 }
 
 int diagnosticarDoenca(const char* DNA, Subcadeia* genes, int num_genes, int L)
