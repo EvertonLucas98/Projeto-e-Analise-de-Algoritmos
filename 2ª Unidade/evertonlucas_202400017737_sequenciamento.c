@@ -1,29 +1,10 @@
-#include <stdio.h>
 #include <math.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdint.h>
-#include <time.h>
-
-/*
-input:
-3
-AAAATTTCGTTAAATTTGAACATAGGGATA
-4
-ABCDE 3 AAA AAT AAAG
-XY1WZ2AB 1 TTTTTTGGGG
-H1N1 4 ACTG AACCGGTT AATAAT AAAAAAAAGA
-HUEBR 1 CATAGGGATT
-
-output:
-XY1WZ2AB->100%
-HUEBR->100%
-ABCDE->67%
-H1N1->25%
-*/
 
 // Define uma constante para o tamanho máximo das strings
-#define MAX_STR 1001
+#define MAX_STR 1002
 
 typedef struct
 {
@@ -45,6 +26,12 @@ typedef struct
     char** nomesGenes;
     int qtdDoencas, tamanhoSubGenes, totalGenes;
 } Arquivo;
+
+typedef struct
+{
+    char nomeDoenca[9];
+    int probabilidade;
+} Resultado;
 
 // Função para ler dados do arquivo de entrada
 Arquivo lerArquivo(FILE* arquivo)
@@ -144,6 +131,8 @@ int buscarKMP(const char* DNA, const char* padrao, const int L, int start_pos, i
     int max_start = N - L;
     if (max_start < start_pos) return 0;
 
+    // printf("\nProcurando subGene \"%s\" a partir de pos %d\n", padrao, start_pos);
+
     for (int pos = start_pos; pos <= max_start; pos++) {
         int k = 0;
         // compara enquanto houver caracteres e enquanto bater
@@ -154,18 +143,23 @@ int buscarKMP(const char* DNA, const char* padrao, const int L, int start_pos, i
         }
         if (k >= L) {
             if (pos_found) *pos_found = pos;
+            // printf("MATCH encontrado! DNA[%d..%d], tam=%d\n", pos, pos + k - 1, k);
             return k;
         }
         // caso contrário, continue para próxima posição
     }
 
-    // nenhum match mínimo encontrado
+    // printf("Nenhum match encontrado para \"%s\".\n", padrao);
+    // Nenhum match mínimo encontrado
     return 0;
 }
 
 // Função para calcular a compatibilidade entre o DNA e um gene
 int calcularCompatibilidade(const char* DNA, char* gene, const int L)
 {
+    // printf("\n====================================================\n");
+    // printf("Iniciando analise do gene: %s\n", gene);
+    // printf("====================================================\n");
     if (!DNA || !gene || L <= 0) return 0;
     int tamanhoDNA = (int)strlen(DNA);
     int tamanhoGene = (int)strlen(gene);
@@ -189,15 +183,13 @@ int calcularCompatibilidade(const char* DNA, char* gene, const int L)
 
         // avançamos no gene pelos encontrados
         matchs += found_k;
-
         // avançamos a posição de busca no DNA para logo após o trecho usado
         dna_search_pos = found_pos + found_k;
+        
         if (dna_search_pos >= tamanhoDNA) break; // não há mais DNA para procurar
     }
 
     int percentualGene = (int)ceil((double)(matchs * 100) / (double)tamanhoGene);
-
-    printf("Probabilidade de %s: %d%%\n", gene, percentualGene);
 
     return percentualGene;
 }
@@ -223,7 +215,6 @@ int diagnosticarDoenca(const char* DNA, Gene* genes, int num_genes, int L)
 
 int main(int argc, char *argv[])
 {
-    clock_t start_time = clock();
     // Verificando argumentos de linha de comando
     if (argc != 3)
     {
@@ -246,21 +237,44 @@ int main(int argc, char *argv[])
 
     // Lendo os dados do arquivo
     Arquivo dadosArquivo = lerArquivo(input);
-    // Struct para armazenar os resultados dos diagnósticos
 
+    // Struct para armazenar os resultados dos diagnósticos
+    Resultado* resultados = malloc(dadosArquivo.qtdDoencas * sizeof(Resultado));
     
     // Diagnóstico para cada doença
     for (int i = 0; i < dadosArquivo.qtdDoencas; i++)
     {
+        // Diagnóstico da doença atual
         Doenca doencaAtual = dadosArquivo.doencas[i];
         int resultado = diagnosticarDoenca(dadosArquivo.dna, doencaAtual.genes, doencaAtual.qtdGenes, dadosArquivo.tamanhoSubGenes);
-        printf("DOENCA %s -> %d%%\n", doencaAtual.nomeDoenca, resultado);
-        printf("===========================\n");
+        // Armazenando resultado
+        strcpy(resultados[i].nomeDoenca, doencaAtual.nomeDoenca);
+        resultados[i].probabilidade = resultado;
     }
 
-    clock_t end_time = clock();
-    double time_spent = (double)(end_time - start_time) / CLOCKS_PER_SEC;
-    printf("Tempo de execucao: %.4f segundos\n", time_spent);
+    // Ordenação estável dos resultados em ordem decrescente de probabilidade
+    for (int i = 0; i < dadosArquivo.qtdDoencas - 1; i++)
+    {
+        for (int j = 0; j < dadosArquivo.qtdDoencas - i - 1; j++)
+        {
+            if (resultados[j].probabilidade < resultados[j + 1].probabilidade)
+            {
+                Resultado temp = resultados[j];
+                resultados[j] = resultados[j + 1];
+                resultados[j + 1] = temp;
+            }
+        }
+    }
+
+    // Escrevendo os resultados no arquivo de saída
+    for (int i = 0; i < dadosArquivo.qtdDoencas; i++)
+    {
+        // Evitando quebra de linha desnecessária
+        if (i == dadosArquivo.qtdDoencas - 1)
+            fprintf(output, "%s->%d%%", resultados[i].nomeDoenca, resultados[i].probabilidade);
+        else // 
+            fprintf(output, "%s->%d%%\n", resultados[i].nomeDoenca, resultados[i].probabilidade);
+    }
 
     // Fechando os arquivos
     fclose(input);
