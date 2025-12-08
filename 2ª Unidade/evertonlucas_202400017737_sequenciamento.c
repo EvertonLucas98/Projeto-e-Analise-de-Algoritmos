@@ -272,7 +272,7 @@ int main(int argc, char *argv[])
         // Evitando quebra de linha desnecessária
         if (i == dadosArquivo.qtdDoencas - 1)
             fprintf(output, "%s->%d%%", resultados[i].nomeDoenca, resultados[i].probabilidade);
-        else // 
+        else
             fprintf(output, "%s->%d%%\n", resultados[i].nomeDoenca, resultados[i].probabilidade);
     }
 
