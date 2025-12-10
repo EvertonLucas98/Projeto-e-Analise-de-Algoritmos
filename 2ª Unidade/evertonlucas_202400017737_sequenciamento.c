@@ -1,35 +1,34 @@
-#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
+#include <time.h>
 
-// Define uma constante para o tamanho máximo das strings
-#define MAX_STR 1002
-
-typedef struct
+typedef struct Gene
 {
-    char nomeGene[MAX_STR];
-    int qtdSubGenes;
+    char nomeGene[2000];
 } Gene;
 
-typedef struct
+typedef struct Doenca
 {
-    char nomeDoenca[9];
-    Gene *genes;
+    char nomeDoenca[100];
+    Gene* genes;
     int qtdGenes;
 } Doenca;
 
-typedef struct
+typedef struct Arquivo
 {
-    char dna[MAX_STR * 10];
+    char dna[100000];
     Doenca* doencas;
     char** nomesGenes;
-    int qtdDoencas, tamanhoSubGenes, totalGenes;
+    int qtdDoencas;
+    int tamanhoSubGenes;
+    int totalGenes;
 } Arquivo;
 
-typedef struct
+typedef struct Resultado
 {
-    char nomeDoenca[9];
+    char nomeDoenca[100];
     int probabilidade;
 } Resultado;
 
@@ -42,7 +41,7 @@ Arquivo lerArquivo(FILE* arquivo)
     // Lendo tamanho dos subgenes
     fscanf(arquivo, "%d", &dadosArquivo.tamanhoSubGenes);
     // Lendo DNA com limite para evitar overflow
-    fscanf(arquivo, "%10002s", dadosArquivo.dna);
+    fscanf(arquivo, "%s", dadosArquivo.dna);
     // Lendo quantidade de doenças
     fscanf(arquivo, "%d", &qtdDoencas);
     // Armazenando a quantidade de doenças
@@ -54,25 +53,25 @@ Arquivo lerArquivo(FILE* arquivo)
     for (int i = 0; i < qtdDoencas; ++i)
     {
         // Lendo nome da doença e quantidade de genes
-        fscanf(arquivo, "%9s %d", dadosArquivo.doencas[i].nomeDoenca, &dadosArquivo.doencas[i].qtdGenes);
+        fscanf(arquivo, "%s %d", dadosArquivo.doencas[i].nomeDoenca, &dadosArquivo.doencas[i].qtdGenes);
         // Alocando memória para os genes da doença
         int qtdGenes = dadosArquivo.doencas[i].qtdGenes;
         dadosArquivo.doencas[i].genes = malloc(qtdGenes * sizeof(Gene));
         totalGenes += qtdGenes;
         // Lendo cada gene
         for (int j = 0; j < qtdGenes; ++j)
-            fscanf(arquivo, "%1001s", dadosArquivo.doencas[i].genes[j].nomeGene);
+            fscanf(arquivo, "%s", dadosArquivo.doencas[i].genes[j].nomeGene);
     }
 
     // Armazenando nomes de todos os genes em um array separado
     dadosArquivo.totalGenes = totalGenes;
     dadosArquivo.nomesGenes = malloc(totalGenes * sizeof(char*));
-    for (int i = 0; i < qtdDoencas; ++i)
+    for (int i = 0; i < qtdDoencas; i++)
     {
-        for (int j = 0; j < dadosArquivo.doencas[i].qtdGenes; ++j)
+        for (int j = 0; j < dadosArquivo.doencas[i].qtdGenes; j++)
         {
             // aloca string
-            dadosArquivo.nomesGenes[idx] = malloc(1002);  
+            dadosArquivo.nomesGenes[idx] = malloc((strlen(dadosArquivo.doencas[i].genes[j].nomeGene) + 1) * sizeof(char));  
             // copia nome do gene
             strcpy(dadosArquivo.nomesGenes[idx], dadosArquivo.doencas[i].genes[j].nomeGene);
             // incrementa índice
@@ -83,152 +82,153 @@ Arquivo lerArquivo(FILE* arquivo)
     return dadosArquivo;
 }
 
-// Procedimento para computar o array LPS (Longest Prefix Suffix)
+// Computa array de prefixos (LPS) para o KMP
 void computarLPS(const char* padrao, int M, int* lps)
 {
-    int len = 0; // Comprimento do prefixo anterior
-    if (M == 0) return; // Caso especial para padrão vazio
-    lps[0] = 0; // lps[0] é sempre 0
-    int i = 1; // Índice para percorrer o padrão
-
-    // Loop para preencher o array lps
-    while (i < M)
-    {
-        // Se os caracteres combinam
-        if (padrao[i] == padrao[len])
-        {
-            len++; // Incrementa o comprimento do prefixo
-            lps[i] = (int)len; // Define lps[i]
-            i++; // Move para o próximo caractere
-        } else // Se os caracteres não combinam
-        {
-            // Verifica se há um prefixo anterior para comparar
-            if (len != 0)
-                len = (int) lps[len - 1];
-            else // Se não houver prefixo anterior
-            {
-                lps[i] = 0; // Define lps[i] como 0
-                i++; // Move para o próximo caractere
+    int len = 0;
+    lps[0] = 0;
+    int i = 1;
+    while (i < M) {
+        if (padrao[i] == padrao[len]) {
+            len++;
+            lps[i] = len;
+            i++;
+        } else {
+            if (len != 0) {
+                len = lps[len - 1];
+            } else {
+                lps[i] = 0;
+                i++;
             }
         }
     }
 }
 
-// Função para buscar o maior prefixo do padrão no DNA usando KMP
-int buscarKMP(const char* DNA, const char* padrao, const int L, int posInicial, int *posEncontrada)
+// Função KMP para buscar o maior prefixo do padrão no DNA
+int buscarKMP(const char* dna, const char* padrao, int L, int posInicial, int *posEncontrada)
 {
-    int N = (int)strlen(DNA); // Tamanho do DNA
-    int M = (int)strlen(padrao); // Tamanho do padrão
-    if (N == 0 || M == 0) return 0;
-    if (posInicial < 0) posInicial = 0; // Ajusta posição inicial negativa
-    if (posInicial >= N) return 0; // Posição inicial inválida
-    if (L > M) return 0; // Não é possível obter prefixo de tamanho L
+    int N = strlen(dna);
+    int M = strlen(padrao);
+    
+    if (M == 0) return 0;
+    
+    // Aloca vetor LPS dinamicamente para o padrão atual
+    int *lps = (int*)malloc(sizeof(int) * M);
+    computarLPS(padrao, M, lps);
 
-    // Limite superior para pos: basta ter espaço para ao menos L caracteres
-    int maxInicio = N - L; // Última posição válida para início de busca
-    if (maxInicio < posInicial) return 0; // Não há espaço para busca
+    int i = posInicial; // index for text
+    int j = 0; // index for pattern
 
-    // printf("\nProcurando subGene \"%s\" a partir de pos %d\n", padrao, posInicial);
-
-    // Percorre o DNA a partir da posição inicial até o limite máximo
-    for (int pos = posInicial; pos <= maxInicio; pos++)
-    {
-        int k = 0;
-        // Compara enquanto houver caracteres e enquanto combinar
-        while (pos + k < N && k < M && DNA[pos + k] == padrao[k])
-        {
-            k++;
-            // Se k atingiu M podemos parar, já é o máximo possível aqui
-            if (k == M) break;
+    while (i < N) {
+        if (padrao[j] == dna[i]) {
+            j++;
+            i++;
         }
 
-        // Se encontramos um prefixo de tamanho mínimo L
-        if (k >= L)
-        {
-            // Verifica se o ponteiro de posição foi fornecido
-            if (posEncontrada)
-                *posEncontrada = pos;
-            // printf("MATCH encontrado! DNA[%d..%d], tam=%d\n", pos, pos + k - 1, k);
-            return k;
+        // Se encontramos um prefixo do tamanho total do padrão
+        if (j == M) {
+            // Match completo encontrado
+            if (posEncontrada) *posEncontrada = i - j;
+            free(lps);
+            return M; // Retorna M pois é >= L com certeza
+        }
+        // Se houve mismatch após j matches
+        else if (i < N && padrao[j] != dna[i]) {
+            // Verificar se o que combinamos até agora (j) é suficiente
+            // O algoritmo original parava na primeira ocorrencia >= L
+            // Aqui, antes de resetar o 'j', verificamos se já atingimos L
+            if (j >= L) {
+                if (posEncontrada) *posEncontrada = i - j;
+                free(lps);
+                return j;
+            }
+
+            if (j != 0)
+                j = lps[j - 1];
+            else
+                i = i + 1;
         }
     }
 
-    // printf("Nenhum match encontrado para \"%s\".\n", padrao);
+    // Verifica se o que foi combinado no final é suficiente
+    if (j >= L) {
+        if (posEncontrada) *posEncontrada = i - j;
+        free(lps);
+        return j;
+    }
+
+    free(lps);
     return 0;
 }
 
 // Função para calcular a compatibilidade entre o DNA e um gene
 int calcularCompatibilidade(const char* DNA, char* gene, const int L)
 {
-    // printf("\n====================================================\n");
-    // printf("Iniciando analise do gene: %s\n", gene);
-    // printf("====================================================\n");
-    int tamanhoDNA = (int)strlen(DNA); // Tamanho do DNA
-    int tamanhoGene = (int)strlen(gene); // Tamanho do gene
+    int tamanhoDNA = strlen(DNA);
+    int tamanhoGene = strlen(gene);
     if (tamanhoDNA == 0 || tamanhoGene == 0) return 0;
 
-    int matchs = 0; // Quantidade de caracteres combinados
-    int dnaBuscaPos = 0; // onde começamos a procurar no DNA
+    int matchs = 0;
+    int dnaBuscaPos = 0;
 
     while (matchs < tamanhoGene)
     {
-        char *subGene = gene + matchs; // Ponteiro para o subGene atual
-        int restante = (int)strlen(subGene); // Caracteres restantes no gene
-        if (restante < L) break; // não há mais subGene com tamanho mínimo
+        char *subGene = gene + matchs;
+        // Se o que sobrou do gene for menor que L, não tem como dar match válido
+        if ((int)strlen(subGene) < L) break; 
 
         int posEncontrada = -1;
-        // Busca o próximo prefixo do subGene no DNA
+        // Busca eficiente
         int matchsEncontrados = buscarKMP(DNA, subGene, L, dnaBuscaPos, &posEncontrada);
-        // Se não encontrou mais correspondências, sai do loop
+
         if (matchsEncontrados <= 0) break;
-        // Avançamos no gene pelos encontrados
+
         matchs += matchsEncontrados;
-        // Avançamos a posição de busca no DNA para logo após o trecho usado
+        // Avança no DNA para depois do match encontrado
         dnaBuscaPos = posEncontrada + matchsEncontrados;
-        // Se a posição de busca ultrapassar o tamanho do DNA, encerramos
+        
         if (dnaBuscaPos >= tamanhoDNA) break;
     }
-
+    
     // Calcula o percentual de compatibilidade
-    int percentualGene = (int)ceil((double)(matchs * 100) / (double)tamanhoGene);
+    double percentual = ((double)matchs * 100.0) / (double)tamanhoGene;
 
-    return percentualGene;
+    return (int)(percentual + (percentual < 0.0 ? -0.5 : 0.5));
 }
 
 // Função para diagnosticar a doença com base no DNA e seus genes
 int diagnosticarDoenca(const char* DNA, Gene* genes, int numGenes, int L)
 {
     if (!DNA || !genes || numGenes <= 0 || L <= 0) return 0;
-    int genes_detectados = 0; // Contador de genes detectados
+    int genes_detectados = 0;
 
-    // Verifica cada gene da doença
     for (int i = 0; i < numGenes; i++)
     {
         int compatibilidade = calcularCompatibilidade(DNA, genes[i].nomeGene, L);
         if (compatibilidade >= 90) genes_detectados++;
     }
 
-    // Calcula a probabilidade final da doença
     double resultado = ((double)genes_detectados / (double)numGenes) * 100.0;
-    return (int)lround(resultado);
+    
+    return (int)(resultado + 0.5);
 }
 
 // Função para ordenar os resultados em ordem decrescente de probabilidade
 void ordenarResultados(Resultado* resultados, int qtdResultados)
 {
-    // Ordenação estável usando Bubble Sort xD
-    for (int i = 0; i < qtdResultados - 1; i++)
+    // Insertion Sort
+    for (int i = 1; i < qtdResultados; i++)
     {
-        for (int j = 0; j < qtdResultados - i - 1; j++)
+        Resultado key = resultados[i];
+        int j = i - 1;
+
+        // Move os elementos que são menores que key para uma posição à frente
+        while (j >= 0 && resultados[j].probabilidade < key.probabilidade)
         {
-            if (resultados[j].probabilidade < resultados[j + 1].probabilidade)
-            {
-                // Troca os resultados
-                Resultado temp = resultados[j];
-                resultados[j] = resultados[j + 1];
-                resultados[j + 1] = temp;
-            }
+            resultados[j + 1] = resultados[j];
+            j = j - 1;
         }
+        resultados[j + 1] = key;
     }
 }
 
@@ -237,59 +237,62 @@ void escreverResultados(FILE* output, Resultado* resultados, int qtdResultados)
 {
     for (int i = 0; i < qtdResultados; i++)
     {
-        if (i == qtdResultados - 1)
-            fprintf(output, "%s->%d%%", resultados[i].nomeDoenca, resultados[i].probabilidade);
-        else
-            fprintf(output, "%s->%d%%\n", resultados[i].nomeDoenca, resultados[i].probabilidade);
+        fprintf(output, "%s->%d%%", resultados[i].nomeDoenca, resultados[i].probabilidade);
+        if (i < qtdResultados - 1) fprintf(output, "\n");
     }
 }
 
 int main(int argc, char *argv[])
 {
-    // Verificando argumentos de linha de comando
+    clock_t start = clock();
     if (argc != 3)
     {
         printf("Uso: %s <input> <output>\n", argv[0]);
         return 1;
     }
 
-    // Abrindo os arquivos
     FILE* input = fopen(argv[1], "r");
     if (!input) {
-        perror("Erro ao abrir arquivo de input");
+        perror("Erro ao abrir input");
         return 1;
     }
     
     FILE* output = fopen(argv[2], "w");
     if (!output) {
-        perror("Erro ao abrir arquivo de output");
+        perror("Erro ao abrir output");
         fclose(input);
         return 1;
     }
 
-    // Lendo os dados do arquivo
+    // Lê os dados do arquivo de entrada
     Arquivo dadosArquivo = lerArquivo(input);
-
-    // Struct para armazenar os resultados dos diagnósticos
+    // Aloca array para resultados
     Resultado* resultados = malloc(dadosArquivo.qtdDoencas * sizeof(Resultado));
-    
+
     // Diagnóstico para cada doença
-    for (int i = 0; i < dadosArquivo.qtdDoencas; i++)
+    if (dadosArquivo.qtdDoencas > 0)
     {
-        Doenca doencaAtual = dadosArquivo.doencas[i];
-        int resultado = diagnosticarDoenca(dadosArquivo.dna, doencaAtual.genes, doencaAtual.qtdGenes, dadosArquivo.tamanhoSubGenes);
-        // Armazenando resultado
-        strcpy(resultados[i].nomeDoenca, doencaAtual.nomeDoenca);
-        resultados[i].probabilidade = resultado;
+        // Para cada doença, calcula a probabilidade
+        for (int i = 0; i < dadosArquivo.qtdDoencas; i++)
+        {
+            Doenca doencaAtual = dadosArquivo.doencas[i];
+            int resultado = diagnosticarDoenca(dadosArquivo.dna, doencaAtual.genes, doencaAtual.qtdGenes, dadosArquivo.tamanhoSubGenes);
+            strcpy(resultados[i].nomeDoenca, doencaAtual.nomeDoenca);
+            resultados[i].probabilidade = resultado;
+        }
+
+        // Ordena resultados antes de escrever
+        ordenarResultados(resultados, dadosArquivo.qtdDoencas);
+        // Escreve resultados no arquivo de saída
+        escreverResultados(output, resultados, dadosArquivo.qtdDoencas);
+        // Libera memória dos resultados
+        free(resultados);
     }
 
-    // Ordenação estável dos resultados em ordem decrescente de probabilidade
-    ordenarResultados(resultados, dadosArquivo.qtdDoencas);
-
-    // Escrevendo os resultados no arquivo de saída
-    escreverResultados(output, resultados, dadosArquivo.qtdDoencas);
-
-    // Fechando os arquivos
+    clock_t end = clock();
+    double cpu_time_used = ((double)(end - start)) / CLOCKS_PER_SEC;
+    printf("Tempo de execucao: %f segundos\n", cpu_time_used);
+    
     fclose(input);
     fclose(output);
 
