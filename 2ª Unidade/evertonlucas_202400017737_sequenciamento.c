@@ -105,66 +105,69 @@ void computarLPS(const char* padrao, int M, int* lps)
 }
 
 // Função KMP para buscar o maior prefixo do padrão no DNA
-int buscarKMP(const char* dna, const char* padrao, int L, int posInicial, int *posEncontrada)
+int buscarKMP(const char* dna, const char* padrao, const int N, int L, int posInicial, int *posEncontrada)
 {
-    int N = strlen(dna);
     int M = strlen(padrao);
-    
     if (M == 0) return 0;
     
     // Aloca vetor LPS dinamicamente para o padrão atual
     int *lps = (int*)malloc(sizeof(int) * M);
     computarLPS(padrao, M, lps);
 
-    int i = posInicial; // index for text
-    int j = 0; // index for pattern
+    int i = posInicial; // Indice para dna
+    int j = 0; // Indice para padrao
 
-    while (i < N) {
-        if (padrao[j] == dna[i]) {
+    // printf("\nProcurando subGene \"%s\" a partir de pos %d\n", padrao, posInicial);
+
+    while (i < N)
+    {
+        // Se os caracteres combinam, avança ambos os índices
+        if (padrao[j] == dna[i])
+        {
             j++;
             i++;
         }
 
         // Se encontramos um prefixo do tamanho total do padrão
-        if (j == M) {
+        if (j == M)
+        {
             // Match completo encontrado
             if (posEncontrada) *posEncontrada = i - j;
+            // printf("MATCH encontrado! DNA[%d..%d], tam=%d\n", i - j, i - 1, j);
             free(lps);
             return M; // Retorna M pois é >= L com certeza
-        }
-        // Se houve mismatch após j matches
-        else if (i < N && padrao[j] != dna[i]) {
-            // Verificar se o que combinamos até agora (j) é suficiente
-            // O algoritmo original parava na primeira ocorrencia >= L
-            // Aqui, antes de resetar o 'j', verificamos se já atingimos L
-            if (j >= L) {
+        } else if (i < N && padrao[j] != dna[i])
+        {
+            // Verifica se o que foi combinado até agora é suficiente
+            if (j >= L)
+            {
                 if (posEncontrada) *posEncontrada = i - j;
+                // printf("MATCH encontrado! DNA[%d..%d], tam=%d\n", i - j, i - 1, j);
                 free(lps);
                 return j;
             }
 
+            // Não é suficiente, continua a busca
             if (j != 0)
                 j = lps[j - 1];
-            else
+            else // Move para o próximo caractere no DNA
                 i = i + 1;
         }
     }
 
-    // Verifica se o que foi combinado no final é suficiente
-    if (j >= L) {
-        if (posEncontrada) *posEncontrada = i - j;
-        free(lps);
-        return j;
-    }
+    // printf("Nenhum match encontrado para \"%s\".\n", padrao);
 
     free(lps);
     return 0;
 }
 
 // Função para calcular a compatibilidade entre o DNA e um gene
-int calcularCompatibilidade(const char* DNA, char* gene, const int L)
+int calcularCompatibilidade(const char* dna, char* gene, const int L)
 {
-    int tamanhoDNA = strlen(DNA);
+    // printf("\n====================================================\n");
+    // printf("Iniciando analise do gene: %s\n", gene);
+    // printf("====================================================\n");
+    int tamanhoDNA = strlen(dna);
     int tamanhoGene = strlen(gene);
     if (tamanhoDNA == 0 || tamanhoGene == 0) return 0;
 
@@ -179,7 +182,7 @@ int calcularCompatibilidade(const char* DNA, char* gene, const int L)
 
         int posEncontrada = -1;
         // Busca eficiente
-        int matchsEncontrados = buscarKMP(DNA, subGene, L, dnaBuscaPos, &posEncontrada);
+        int matchsEncontrados = buscarKMP(dna, subGene, tamanhoDNA, L, dnaBuscaPos, &posEncontrada);
 
         if (matchsEncontrados <= 0) break;
 
