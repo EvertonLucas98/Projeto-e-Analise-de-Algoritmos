@@ -105,11 +105,8 @@ void computarLPS(const char* padrao, int M, int* lps)
 }
 
 // Função KMP para buscar o maior prefixo do padrão no DNA
-int buscarKMP(const char* dna, const char* padrao, const int N, int L, int posInicial, int *posEncontrada)
-{
-    int M = strlen(padrao);
-    if (M == 0) return 0;
-    
+int buscarKMP(const char* dna, const char* padrao, const int N, int M, int L, int posInicial, int *posEncontrada)
+{   
     // Aloca vetor LPS dinamicamente para o padrão atual
     int *lps = (int*)malloc(sizeof(int) * M);
     computarLPS(padrao, M, lps);
@@ -119,6 +116,7 @@ int buscarKMP(const char* dna, const char* padrao, const int N, int L, int posIn
 
     // printf("\nProcurando subGene \"%s\" a partir de pos %d\n", padrao, posInicial);
 
+    // Percorre o DNA
     while (i < N)
     {
         // Se os caracteres combinam, avança ambos os índices
@@ -176,20 +174,23 @@ int calcularCompatibilidade(const char* dna, char* gene, const int L)
 
     while (matchs < tamanhoGene)
     {
+        // Ponteiro para o que sobrou do gene
         char *subGene = gene + matchs;
+        // Tamanho do que sobrou do gene
+        int tamanhoSubGene = strlen(subGene);
         // Se o que sobrou do gene for menor que L, não tem como dar match válido
-        if ((int)strlen(subGene) < L) break; 
-
+        if (tamanhoSubGene < L) break; 
+        // Posição onde o match foi encontrado
         int posEncontrada = -1;
-        // Busca eficiente
-        int matchsEncontrados = buscarKMP(dna, subGene, tamanhoDNA, L, dnaBuscaPos, &posEncontrada);
-
+        // Busca o maior prefixo do subGene no DNA a partir do ultimo ponto de busca
+        int matchsEncontrados = buscarKMP(dna, subGene, tamanhoDNA, tamanhoSubGene, L, dnaBuscaPos, &posEncontrada);
+        // Se não encontrou mais matches, sai do loop
         if (matchsEncontrados <= 0) break;
-
+        // Acumula os matches encontrados
         matchs += matchsEncontrados;
         // Avança no DNA para depois do match encontrado
         dnaBuscaPos = posEncontrada + matchsEncontrados;
-        
+        // Se ultrapassou o tamanho do DNA, sai do loop
         if (dnaBuscaPos >= tamanhoDNA) break;
     }
     
