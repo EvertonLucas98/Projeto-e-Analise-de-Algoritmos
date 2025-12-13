@@ -4,15 +4,9 @@
 #include <string.h>
 #include <time.h>
 #include <stdint.h>
-
-/*
-Input Exemplo:
-4
-5 AA AA AA AA AA
-7 10 20 30 40 50 60 70
-9 FF FF FF FF FF FF FF FF FF
-4 FA FA C1 C1
-*/
+#ifdef _OPENMP
+#include <omp.h>
+#endif
 
 // Estrutura para armazenar o resultado da compressão
 typedef struct ResultadoComp {
@@ -85,13 +79,6 @@ DadosArquivo lerArquivo(FILE* arquivo)
 
 // ---------------------- RLE --------------------------
 
-// Função auxiliar para adicionar bytes ao buffer de resposta
-void addByte(uint8_t** buffer, int* tam, uint8_t val) {
-    *buffer = realloc(*buffer, (*tam + 1) * sizeof(uint8_t));
-    (*buffer)[*tam] = val;
-    (*tam)++;
-}
-
 // Função para comprimir dados usando RLE (Run-Length Encoding)
 ResultadoComp compressaoRLE(Dados* dados)
 {
@@ -99,40 +86,66 @@ ResultadoComp compressaoRLE(Dados* dados)
     strcpy(res.algo, "RLE");
     res.buffer = NULL;
     res.bufferTam = 0;
-    
+
     uint8_t* sequencia = dados->dados;
     int tamanho = dados->sequenciaTam;
+
     int bitsAntes = tamanho * 8;
     int bitsDepois = 0;
+    int bytesDepois = 0;
 
     if (tamanho == 0) {
-        res.percentual = 0.0f;
         res.bitsTotal = 0;
+        res.percentual = 0.0f;
         return res;
     }
 
+    /* ---------- PRIMEIRA PASSAGEM ----------
+       Apenas conta bits e bytes gerados
+    */
     int count = 1;
-    // Implementação do RLE
-    for (int j = 1; j <= tamanho; j++)
-    {
-        // Verifica se o próximo byte é igual ao atual
-        if (j < tamanho && sequencia[j] == sequencia[j - 1])
+    for (int j = 1; j <= tamanho; j++) {
+        if (j < tamanho && sequencia[j] == sequencia[j - 1]) {
             count++;
-        else // Sequência terminou ou byte diferente
-        {
-            // Lógica baseada no seu código original de contagem de bits
+        } else {
             if (count == 1) {
-                bitsDepois += 8; // 1 byte = 8 bits
-                addByte(&res.buffer, &res.bufferTam, sequencia[j-1]);
-            }
-            else {
+                bitsDepois += 8;
+                bytesDepois += 1;
+            } else {
                 int remaining = count;
-                // Divide em múltiplos de 255 se necessário
                 while (remaining > 0) {
                     int chunk = remaining > 255 ? 255 : remaining;
-                    bitsDepois += 16; // par (count, byte) = 16 bits
-                    addByte(&res.buffer, &res.bufferTam, (uint8_t)chunk); // Count
-                    addByte(&res.buffer, &res.bufferTam, sequencia[j-1]); // Value
+                    bitsDepois += 16;
+                    bytesDepois += 2;
+                    remaining -= chunk;
+                }
+            }
+            count = 1;
+        }
+    }
+
+    /* ---------- ALOCAÇÃO ÚNICA ---------- */
+    res.buffer = malloc(bytesDepois * sizeof(uint8_t));
+    res.bufferTam = bytesDepois;
+
+    /* ---------- SEGUNDA PASSAGEM ----------
+       Agora escreve os bytes no buffer
+    */
+    int pos = 0;
+    count = 1;
+
+    for (int j = 1; j <= tamanho; j++) {
+        if (j < tamanho && sequencia[j] == sequencia[j - 1]) {
+            count++;
+        } else {
+            if (count == 1) {
+                res.buffer[pos++] = sequencia[j - 1];
+            } else {
+                int remaining = count;
+                while (remaining > 0) {
+                    int chunk = remaining > 255 ? 255 : remaining;
+                    res.buffer[pos++] = (uint8_t)chunk;
+                    res.buffer[pos++] = sequencia[j - 1];
                     remaining -= chunk;
                 }
             }
@@ -142,8 +155,10 @@ ResultadoComp compressaoRLE(Dados* dados)
 
     res.bitsTotal = bitsDepois;
     res.percentual = 100.0f * (float)bitsDepois / (float)bitsAntes;
+
     return res;
 }
+
 
 /* ---------------------- Huffman -------------------------- */
 
@@ -350,40 +365,56 @@ int main(int argc, char *argv[])
     DadosArquivo dadosArquivo = lerArquivo(input);
     int qtdDados = dadosArquivo.qtdDados;
 
-    for (int i = 0; i < qtdDados; i++) {
-        // Executar ambos os métodos
+    char** saidas = malloc(qtdDados * sizeof(char*));
+    #ifdef _OPENMP
+    #pragma omp parallel for
+    #endif
+    for (int i = 0; i < qtdDados; i++)
+    {
         ResultadoComp rle = compressaoRLE(&dadosArquivo.dados[i]);
         ResultadoComp huf = compressaoHuffman(&dadosArquivo.dados[i]);
 
-        // Decidir o vencedor (menor número de bits)
-        // Se empate, Huffman costuma ser preferido, ou ordem arbitrária
-        ResultadoComp* vencedor;
-        
+        char* bufferSaida = malloc(512); // tamanho seguro para saída textual
+        int offset = 0;
+
         if (huf.bitsTotal == rle.bitsTotal)
         {
-            fprintf(output, "%d->%s(%.2f%%)=", i, "HUF", huf.percentual);
-            escreverHex(output, huf.buffer, huf.bufferTam);
-            fprintf(output, "\n");
-            fprintf(output, "%d->%s(%.2f%%)=", i, "RLE", rle.percentual);
-            escreverHex(output, rle.buffer, rle.bufferTam);
-        } else
-        {
-            vencedor = (huf.bitsTotal < rle.bitsTotal) ? &huf : &rle;
-            fprintf(output, "%d->%s(%.2f%%)=", i, vencedor->algo, vencedor->percentual);
-            escreverHex(output, vencedor->buffer, vencedor->bufferTam);
+            offset += snprintf(bufferSaida + offset, 512 - offset, "%d->HUF(%.2f%%)=", i, huf.percentual);
+            for (int j = 0; j < huf.bufferTam && offset < 512 - 2; j++)
+                offset += snprintf(bufferSaida + offset, 512 - offset, "%02X", huf.buffer[j]);
+
+            offset += snprintf(bufferSaida + offset, 512 - offset, "\n%d->RLE(%.2f%%)=", i, rle.percentual);
+            for (int j = 0; j < rle.bufferTam && offset < 512 - 2; j++)
+                offset += snprintf(bufferSaida + offset, 512 - offset, "%02X", rle.buffer[j]);
         }
-        
-        if (i < qtdDados - 1)
-            fprintf(output, "\n");
+        else
+        {
+            ResultadoComp* v = (huf.bitsTotal < rle.bitsTotal) ? &huf : &rle;
+            offset += snprintf(bufferSaida + offset, 512 - offset, "%d->%s(%.2f%%)=", i, v->algo, v->percentual);
+            for (int j = 0; j < v->bufferTam && offset < 512 - 2; j++)
+                offset += snprintf(bufferSaida + offset, 512 - offset, "%02X", v->buffer[j]);
+        }
+
+        saidas[i] = bufferSaida;
 
         free(rle.buffer);
         free(huf.buffer);
     }
 
+
+    for (int i = 0; i < qtdDados; i++)
+    {
+        fprintf(output, "%s", saidas[i]);
+        if (i < qtdDados - 1)
+            fprintf(output, "\n");
+        free(saidas[i]);
+    }
+    
     // Liberar memória alocada para os dados
     for (int i = 0; i < qtdDados; i++)
         free(dadosArquivo.dados[i].dados);
     free(dadosArquivo.dados);
+    free(saidas);
 
     clock_t end = clock();
     double time_spent = (double)(end - start) / CLOCKS_PER_SEC;
