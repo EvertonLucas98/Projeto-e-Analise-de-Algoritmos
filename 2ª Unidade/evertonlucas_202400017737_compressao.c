@@ -2,25 +2,395 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
 #include <time.h>
 #include <stdint.h>
 
 /*
-Input:
+Input Exemplo:
 4
 5 AA AA AA AA AA
 7 10 20 30 40 50 60 70
 9 FF FF FF FF FF FF FF FF FF
 4 FA FA C1 C1
-
-Output:
-0->HUF(20.00%)=00
-1->HUF(42.86%)=9C6B50
-2->HUF(22.22%)=0000
-2->RLE(22.22%)=09FF
-3->HUF(25.00%)=C0
-
- inputComp.txt outputComp.txt
 */
 
+// Estrutura para armazenar o resultado da compressão
+typedef struct ResultadoComp {
+    int bitsTotal;
+    float percentual;
+    uint8_t* buffer;
+    int bufferTam;
+    char algo[4]; // "RLE" ou "HUF"
+} ResultadoComp;
+
+typedef struct Dados
+{
+    uint8_t* dados;
+    int sequenciaTam;
+} Dados;
+
+typedef struct DadosArquivo
+{
+    int qtdDados;
+    Dados* dados;
+} DadosArquivo;
+
+// Estrutura para o nó da árvore de Huffman
+typedef struct NoHuffman
+{
+    uint8_t byte; // Valor do byte
+    unsigned int frequencia; // Frequência do byte
+    struct NoHuffman* esquerda; // Nó esquerdo
+    struct NoHuffman* direita; // Nó direito
+} NoHuffman;
+
+// --- Estrutura de Heap (Min-Heap Array) ---
+typedef struct Heap {
+    NoHuffman** array;
+    int tamanho;
+    int capacidade;
+} Heap;
+
+// Função para ler os dados do arquivo de entrada
+DadosArquivo lerArquivo(FILE* arquivo)
+{
+    DadosArquivo dadosArquivo;
+    // Lendo quantidade de sequências
+    if (fscanf(arquivo, "%d", &dadosArquivo.qtdDados) != 1)
+    {
+        dadosArquivo.qtdDados = 0;
+        dadosArquivo.dados = NULL;
+        return dadosArquivo;
+    }
+    
+    // Alocando memória para as sequências
+    dadosArquivo.dados = malloc(dadosArquivo.qtdDados * sizeof(Dados));
+    // Lendo cada sequência
+    for (int i = 0; i < dadosArquivo.qtdDados; i++)
+    {
+        // Lendo tamanho da sequência
+        fscanf(arquivo, "%d", &dadosArquivo.dados[i].sequenciaTam);
+        // Alocando memória para os dados da sequência
+        dadosArquivo.dados[i].dados = malloc(dadosArquivo.dados[i].sequenciaTam * sizeof(uint8_t));
+        // Lendo os bytes da sequência
+        for (int j = 0; j < dadosArquivo.dados[i].sequenciaTam; j++) {
+            unsigned int tempVal;
+            fscanf(arquivo, "%2X", &tempVal);
+            dadosArquivo.dados[i].dados[j] = (uint8_t)tempVal;
+        }
+    }
+
+    return dadosArquivo;
+}
+
+// ---------------------- RLE --------------------------
+
+// Função auxiliar para adicionar bytes ao buffer de resposta
+void addByte(uint8_t** buffer, int* tam, uint8_t val) {
+    *buffer = realloc(*buffer, (*tam + 1) * sizeof(uint8_t));
+    (*buffer)[*tam] = val;
+    (*tam)++;
+}
+
+// Função para comprimir dados usando RLE (Run-Length Encoding)
+ResultadoComp compressaoRLE(Dados* dados)
+{
+    ResultadoComp res;
+    strcpy(res.algo, "RLE");
+    res.buffer = NULL;
+    res.bufferTam = 0;
+    
+    uint8_t* sequencia = dados->dados;
+    int tamanho = dados->sequenciaTam;
+    int bitsAntes = tamanho * 8;
+    int bitsDepois = 0;
+
+    if (tamanho == 0) {
+        res.percentual = 0.0f;
+        res.bitsTotal = 0;
+        return res;
+    }
+
+    int count = 1;
+    // Implementação do RLE
+    for (int j = 1; j <= tamanho; j++)
+    {
+        // Verifica se o próximo byte é igual ao atual
+        if (j < tamanho && sequencia[j] == sequencia[j - 1])
+            count++;
+        else // Sequência terminou ou byte diferente
+        {
+            // Lógica baseada no seu código original de contagem de bits
+            if (count == 1) {
+                bitsDepois += 8; // 1 byte = 8 bits
+                addByte(&res.buffer, &res.bufferTam, sequencia[j-1]);
+            }
+            else {
+                int remaining = count;
+                // Divide em múltiplos de 255 se necessário
+                while (remaining > 0) {
+                    int chunk = remaining > 255 ? 255 : remaining;
+                    bitsDepois += 16; // par (count, byte) = 16 bits
+                    addByte(&res.buffer, &res.bufferTam, (uint8_t)chunk); // Count
+                    addByte(&res.buffer, &res.bufferTam, sequencia[j-1]); // Value
+                    remaining -= chunk;
+                }
+            }
+            count = 1;
+        }
+    }
+
+    res.bitsTotal = bitsDepois;
+    res.percentual = 100.0f * (float)bitsDepois / (float)bitsAntes;
+    return res;
+}
+
+/* ---------------------- Huffman -------------------------- */
+
+Heap* criarHeap(int capacidade) {
+    Heap* h = malloc(sizeof(Heap));
+    h->tamanho = 0;
+    h->capacidade = capacidade;
+    h->array = malloc(capacidade * sizeof(NoHuffman*));
+    return h;
+}
+
+NoHuffman* criarNo(uint8_t byte, int freq) {
+    NoHuffman *n = malloc(sizeof(NoHuffman));
+    n->byte = byte;
+    n->frequencia = freq;
+    n->esquerda = NULL;
+    n->direita = NULL;
+    return n;
+}
+
+void trocarNo(NoHuffman** a, NoHuffman** b) {
+    NoHuffman* t = *a;
+    *a = *b;
+    *b = t;
+}
+
+// Min-Heapify padrão
+void minHeapify(Heap* h, int idx) {
+    int menor = idx;
+    int esq = 2 * idx + 1;
+    int dir = 2 * idx + 2;
+
+    if (esq < h->tamanho && h->array[esq]->frequencia < h->array[menor]->frequencia)
+        menor = esq;
+
+    if (dir < h->tamanho && h->array[dir]->frequencia < h->array[menor]->frequencia)
+        menor = dir;
+
+    if (menor != idx) {
+        trocarNo(&h->array[menor], &h->array[idx]);
+        minHeapify(h, menor);
+    }
+}
+
+void inserirHeap(Heap *h, NoHuffman *novo) {
+    int i = h->tamanho++;
+    h->array[i] = novo;
+
+    // Fix up
+    while (i && h->array[i]->frequencia < h->array[(i - 1) / 2]->frequencia) {
+        trocarNo(&h->array[i], &h->array[(i - 1) / 2]);
+        i = (i - 1) / 2;
+    }
+}
+
+NoHuffman* extrairMin(Heap *h) {
+    if (h->tamanho == 0) return NULL;
+    NoHuffman* raiz = h->array[0];
+    h->array[0] = h->array[h->tamanho - 1];
+    h->tamanho--;
+    minHeapify(h, 0);
+    return raiz;
+}
+
+// Gera tabela de códigos recursivamente
+void gerarCodigos(NoHuffman* raiz, int arr[], int top, char codigos[256][256], int tamanhos[256]) {
+    if (raiz->esquerda) {
+        arr[top] = 0;
+        gerarCodigos(raiz->esquerda, arr, top + 1, codigos, tamanhos);
+    }
+    if (raiz->direita) {
+        arr[top] = 1;
+        gerarCodigos(raiz->direita, arr, top + 1, codigos, tamanhos);
+    }
+    // É nó folha
+    if (!raiz->esquerda && !raiz->direita) {
+        for (int i = 0; i < top; i++) {
+            codigos[raiz->byte][i] = arr[i] + '0';
+        }
+        codigos[raiz->byte][top] = '\0';
+        tamanhos[raiz->byte] = top;
+    }
+}
+
+void liberarArvore(NoHuffman* raiz) {
+    if (!raiz) return;
+    liberarArvore(raiz->esquerda);
+    liberarArvore(raiz->direita);
+    free(raiz);
+}
+
+ResultadoComp compressaoHuffman(Dados *dados) {
+    ResultadoComp res;
+    strcpy(res.algo, "HUF");
+    res.buffer = NULL;
+    res.bufferTam = 0;
+
+    int tam = dados->sequenciaTam;
+    int bitsAntes = tam * 8;
+    
+    // Frequência
+    int freq[256] = {0};
+    for (int j = 0; j < tam; j++)
+        freq[dados->dados[j]]++;
+
+    Heap* h = criarHeap(256);
+
+    for (int b = 0; b < 256; b++)
+        if (freq[b] > 0)
+            inserirHeap(h, criarNo((uint8_t)b, freq[b]));
+
+    // Construção da árvore
+    while (h->tamanho > 1) {
+        NoHuffman *esquerda = extrairMin(h);
+        NoHuffman *direita = extrairMin(h);
+
+        NoHuffman *pai = criarNo(0, esquerda->frequencia + direita->frequencia);
+        pai->esquerda = esquerda;
+        pai->direita = direita;
+
+        inserirHeap(h, pai);
+    }
+    
+    NoHuffman* raiz = extrairMin(h);
+
+    // Gerar Códigos e Empacotar Bits
+    char mapaCodigos[256][256]; // Tabela de strings "0101"
+    int mapaTamanhos[256] = {0};
+    int arrAux[256];
+    
+    // Caso especial: apenas 1 símbolo (ex: AAAAA) -> Huffman gera 1 bit por simbolo (0)
+    if (raiz && !raiz->esquerda && !raiz->direita) {
+        // Simbolizamos como bit 0
+        mapaCodigos[raiz->byte][0] = '0';
+        mapaCodigos[raiz->byte][1] = '\0';
+        mapaTamanhos[raiz->byte] = 1;
+    } else if (raiz) {
+        gerarCodigos(raiz, arrAux, 0, mapaCodigos, mapaTamanhos);
+    }
+
+    // Calcular bits totais e gerar buffer
+    int bitsTotais = 0;
+    for(int i=0; i<tam; i++) bitsTotais += mapaTamanhos[dados->dados[i]];
+    
+    // Arredondar para bytes completos para alocação
+    res.bufferTam = (bitsTotais + 7) / 8;
+    if (res.bufferTam == 0 && bitsTotais > 0) res.bufferTam = 1;
+    res.buffer = calloc(res.bufferTam, sizeof(uint8_t));
+
+    // Escrever bits no buffer
+    int bitPos = 0;
+    for (int i = 0; i < tam; i++) {
+        uint8_t byte = dados->dados[i];
+        char* codigo = mapaCodigos[byte];
+        for (int k = 0; codigo[k] != '\0'; k++) {
+            if (codigo[k] == '1') {
+                // Seta o bit correspondente
+                res.buffer[bitPos / 8] |= (1 << (7 - (bitPos % 8)));
+            }
+            bitPos++;
+        }
+    }
+
+    int bitsDepois = res.bufferTam * 8;
+
+    res.bitsTotal = bitsDepois;
+    res.percentual = 100.0f * (float)bitsDepois / (float)bitsAntes;
+
+    liberarArvore(raiz);
+    free(h->array);
+    free(h);
+    
+    return res;
+}
+
+void escreverHex(FILE* f, uint8_t* buffer, int tam) {
+    for(int i=0; i<tam; i++) {
+        fprintf(f, "%02X", buffer[i]);
+    }
+}
+
+int main(int argc, char *argv[])
+{
+    clock_t start = clock();
+    if (argc != 3)
+    {
+        printf("Uso: %s <input> <output>\n", argv[0]);
+        return 1;
+    }
+
+    FILE* input = fopen(argv[1], "r");
+    if (!input) {
+        perror("Erro ao abrir input");
+        return 1;
+    }
+    
+    FILE* output = fopen(argv[2], "w");
+    if (!output) {
+        perror("Erro ao abrir output");
+        fclose(input);
+        return 1;
+    }
+
+    DadosArquivo dadosArquivo = lerArquivo(input);
+    int qtdDados = dadosArquivo.qtdDados;
+
+    for (int i = 0; i < qtdDados; i++) {
+        // Executar ambos os métodos
+        ResultadoComp rle = compressaoRLE(&dadosArquivo.dados[i]);
+        ResultadoComp huf = compressaoHuffman(&dadosArquivo.dados[i]);
+
+        // Decidir o vencedor (menor número de bits)
+        // Se empate, Huffman costuma ser preferido, ou ordem arbitrária
+        ResultadoComp* vencedor;
+        
+        if (huf.bitsTotal == rle.bitsTotal)
+        {
+            fprintf(output, "%d->%s(%.2f%%)=", i, "HUF", huf.percentual);
+            escreverHex(output, huf.buffer, huf.bufferTam);
+            fprintf(output, "\n");
+            fprintf(output, "%d->%s(%.2f%%)=", i, "RLE", rle.percentual);
+            escreverHex(output, rle.buffer, rle.bufferTam);
+        } else
+        {
+            vencedor = (huf.bitsTotal < rle.bitsTotal) ? &huf : &rle;
+            fprintf(output, "%d->%s(%.2f%%)=", i, vencedor->algo, vencedor->percentual);
+            escreverHex(output, vencedor->buffer, vencedor->bufferTam);
+        }
+        
+        if (i < qtdDados - 1)
+            fprintf(output, "\n");
+
+        free(rle.buffer);
+        free(huf.buffer);
+    }
+
+    // Liberar memória alocada para os dados
+    for (int i = 0; i < qtdDados; i++)
+        free(dadosArquivo.dados[i].dados);
+    free(dadosArquivo.dados);
+
+    clock_t end = clock();
+    double time_spent = (double)(end - start) / CLOCKS_PER_SEC;
+    printf("Tempo de execucao: %.6f segundos\n", time_spent);
+
+    fclose(input);
+    fclose(output);
+
+    return 0;
+}
