@@ -104,13 +104,15 @@ int calcularCompatibilidade(const char* dna, const char* gene, const int L)
     // Aloca vetor LPS uma única vez com o tamanho máximo necessário
     int *lps = (int*)malloc(sizeof(int) * geneLen);
     if (!lps) return 0;
-
+    
     // Enquanto houver gene para processar e DNA para procurar
     while (geneIdx < geneLen && dnaIdx < dnaLen)
     {
         // Define o "padrão" atual como sendo o restante do gene
         const char* subGene = &gene[geneIdx];
         int subGeneLen = geneLen - geneIdx;
+        
+        // printf("Procurando subGene \"%s\" a partir da pos %d\n", subGene, dnaIdx);
 
         // Se o que sobrou do gene é menor que L, impossível dar match válido
         if (subGeneLen < L) break;
@@ -148,7 +150,7 @@ int calcularCompatibilidade(const char* dna, const char* gene, const int L)
                     k++;        // Avança no DNA
                     tamMatch++; // Avança no Gene
                 }
-
+                // printf("MATCH encontrado! DNA[%d..%d], tam=%d\n", k - tamMatch + 1, k, tamMatch);
                 // Match finalizado
                 matchEncontrado = 1;
                 
@@ -164,7 +166,9 @@ int calcularCompatibilidade(const char* dna, const char* gene, const int L)
         }
 
         // Se não achou nenhum match >= L
-        if (!matchEncontrado) {
+        if (!matchEncontrado)
+        {
+            // printf("Nenhum match encontrado para subGene \"%s\" a partir da pos %d.\n", subGene, dnaIdx);
             break; 
         }
     }
@@ -182,9 +186,10 @@ int diagnosticarDoenca(const char* DNA, Gene* genes, int numGenes, int L)
 {
     if (!DNA || !genes || numGenes <= 0 || L <= 0) return 0;
     int genes_detectados = 0;
-
+    
     for (int i = 0; i < numGenes; i++)
     {
+        // printf("Gene: %s\n", genes[i].nomeGene);
         int compatibilidade = calcularCompatibilidade(DNA, genes[i].nomeGene, L);
         if (compatibilidade >= 90) genes_detectados++;
     }
@@ -216,10 +221,18 @@ void ordenarResultados(Resultado* resultados, int qtdResultados)
 // Procedimento para escrever os resultados no arquivo de saída
 void escreverResultados(FILE* output, Resultado* resultados, int qtdResultados)
 {
+    // printf("\n==================================================\n");
+    // printf("\t\tResultados Finais:\n");
+    // printf("==================================================\n");
     for (int i = 0; i < qtdResultados; i++)
     {
         fprintf(output, "%s->%d%%", resultados[i].nomeDoenca, resultados[i].probabilidade);
-        if (i < qtdResultados - 1) fprintf(output, "\n");
+        // printf("%s->%d%%", resultados[i].nomeDoenca, resultados[i].probabilidade);
+        if (i < qtdResultados - 1)
+        {
+            fprintf(output, "\n");
+            // printf("\n");
+        }
     }
 }
 
@@ -259,6 +272,9 @@ int main(int argc, char *argv[])
         for (int i = 0; i < dadosArquivo.qtdDoencas; i++)
         {
             Doenca doencaAtual = dadosArquivo.doencas[i];
+            // printf("\n==================================================\n");
+            // printf("\tIniciando analise da Doenca: %s\n", doencaAtual.nomeDoenca);
+            // printf("==================================================\n");
             int resultado = diagnosticarDoenca(
                 dadosArquivo.dna,
                 doencaAtual.genes,
