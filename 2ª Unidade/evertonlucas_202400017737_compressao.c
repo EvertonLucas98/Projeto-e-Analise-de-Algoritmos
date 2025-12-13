@@ -4,9 +4,7 @@
 #include <string.h>
 #include <time.h>
 #include <stdint.h>
-#ifdef _OPENMP
 #include <omp.h>
-#endif
 
 // Estrutura para armazenar o resultado da compressão
 typedef struct ResultadoComp {

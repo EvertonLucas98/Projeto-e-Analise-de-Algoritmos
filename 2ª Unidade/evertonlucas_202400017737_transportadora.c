@@ -4,6 +4,7 @@
 #include <float.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <time.h>
 
 typedef struct {
     char codigo[14];
@@ -27,6 +28,17 @@ typedef struct {
     Veiculo *veiculos;
     uint32_t qtd;
 } VeiculosArray;
+
+void liberarMatriz3D(float ***m, uint32_t qtdItens, uint32_t capPeso)
+{
+    for (uint32_t i = 0; i <= qtdItens; ++i)
+    {
+        for (uint32_t j = 0; j <= capPeso; ++j)
+            free(m[i][j]);
+        free(m[i]);
+    }
+    free(m);
+}
 
 // Aloca matriz 3D
 float*** alocarMatriz3D(uint32_t qtdItens, uint32_t capPeso, uint32_t capVolume)
@@ -113,6 +125,8 @@ float backtracking(ItemArray itens, uint32_t qtdItens, uint32_t capPeso, uint32_
             temp--;
         }
     }
+    // Libera matriz 3D
+    liberarMatriz3D(matriz3D, qtdItens, capPeso);
 
     return valorMaximo;
 }
@@ -257,6 +271,7 @@ ItemArray lerDadosItem(FILE* arquivo)
 
 int main(int argc, char *argv[])
 {
+    clock_t start = clock();
     // Verificação de argumentos
     if (argc != 3)
     {
@@ -274,6 +289,9 @@ int main(int argc, char *argv[])
 
     // Processando os dados
     processarDados(dadosVeiculos, dadosItens, output);
+    clock_t end = clock();
+    double time_spent = (double)(end - start) / CLOCKS_PER_SEC;
+    printf("Tempo de execucao: %.2f segundos\n", time_spent);
 
     // Fechando os arquivos
     fclose(input);

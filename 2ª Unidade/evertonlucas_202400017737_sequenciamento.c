@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <omp.h>
 
 typedef struct Gene
 {
@@ -252,10 +253,18 @@ int main(int argc, char *argv[])
     if (dadosArquivo.qtdDoencas > 0)
     {
         // Para cada doença, calcula a probabilidade
+        #ifdef _OPENMP
+        #pragma omp parallel for
+        #endif
         for (int i = 0; i < dadosArquivo.qtdDoencas; i++)
         {
             Doenca doencaAtual = dadosArquivo.doencas[i];
-            int resultado = diagnosticarDoenca(dadosArquivo.dna, doencaAtual.genes, doencaAtual.qtdGenes, dadosArquivo.tamanhoSubGenes);
+            int resultado = diagnosticarDoenca(
+                dadosArquivo.dna,
+                doencaAtual.genes,
+                doencaAtual.qtdGenes,
+                dadosArquivo.tamanhoSubGenes
+            );
             strcpy(resultados[i].nomeDoenca, doencaAtual.nomeDoenca);
             resultados[i].probabilidade = resultado;
         }
