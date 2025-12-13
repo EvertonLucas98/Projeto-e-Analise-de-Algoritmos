@@ -43,6 +43,14 @@ typedef struct Heap {
     int capacidade;
 } Heap;
 
+// Função auxiliar para converter um caractere hexadecimal para seu valor (0-15)
+int hexCharParaInt(char c) {
+    if (c >= '0' && c <= '9') return c - '0';
+    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+    return -1; // Erro ou caractere não hexadecimal
+}
+
 // Função para ler os dados do arquivo de entrada
 DadosArquivo lerArquivo(FILE* arquivo)
 {
@@ -57,18 +65,44 @@ DadosArquivo lerArquivo(FILE* arquivo)
     
     // Alocando memória para as sequências
     dadosArquivo.dados = malloc(dadosArquivo.qtdDados * sizeof(Dados));
+    
     // Lendo cada sequência
     for (int i = 0; i < dadosArquivo.qtdDados; i++)
     {
-        // Lendo tamanho da sequência
+        // 1. Lendo tamanho da sequência
         fscanf(arquivo, "%d", &dadosArquivo.dados[i].sequenciaTam);
-        // Alocando memória para os dados da sequência
-        dadosArquivo.dados[i].dados = malloc(dadosArquivo.dados[i].sequenciaTam * sizeof(uint8_t));
-        // Lendo os bytes da sequência
-        for (int j = 0; j < dadosArquivo.dados[i].sequenciaTam; j++) {
-            unsigned int tempVal;
-            fscanf(arquivo, "%2X", &tempVal);
-            dadosArquivo.dados[i].dados[j] = (uint8_t)tempVal;
+        int tamanho = dadosArquivo.dados[i].sequenciaTam;
+
+        // 2. Alocando memória para os dados da sequência
+        dadosArquivo.dados[i].dados = malloc(tamanho * sizeof(uint8_t));
+
+        // 3. Lendo e convertendo os bytes de forma eficiente (Substituindo o fscanf lento)
+        for (int j = 0; j < tamanho; j++) {
+            int val_alto = -1;
+            int val_baixo = -1;
+            char c;
+
+            // Busca pelo dígito hexadecimal alto
+            do {
+                c = fgetc(arquivo);
+                val_alto = hexCharParaInt(c);
+            } while (val_alto == -1 && !feof(arquivo));
+
+            // Busca pelo dígito hexadecimal baixo
+            do {
+                c = fgetc(arquivo);
+                val_baixo = hexCharParaInt(c);
+            } while (val_baixo == -1 && !feof(arquivo));
+            
+            // Verifica se as leituras foram bem-sucedidas
+            if (val_alto != -1 && val_baixo != -1) {
+                // Combina os dois nibbles para formar o byte (e.g., A e 3 = 0xA3)
+                dadosArquivo.dados[i].dados[j] = (uint8_t)((val_alto << 4) | val_baixo);
+            } else {
+                // Tratar erro de formato ou fim de arquivo inesperado
+                // Por simplicidade, podemos sair ou logar um erro
+                break; 
+            }
         }
     }
 
