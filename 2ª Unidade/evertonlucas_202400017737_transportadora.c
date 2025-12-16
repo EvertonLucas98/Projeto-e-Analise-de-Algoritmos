@@ -112,6 +112,8 @@ float backtracking(ItemArray itens, uint32_t qtdItens, uint32_t capPeso, uint32_
         // Se auxPeso/auxVolume forem negativos, não há mais itens a considerar
         if (auxPeso < 0 || auxVolume < 0) break;
 
+        // Se o valor máximo na posição atual for diferente do valor máximo sem o item 'temp-1',
+        // significa que o item 'temp-1' foi incluído.
         if (matriz3D[temp][auxPeso][auxVolume] != matriz3D[temp-1][auxPeso][auxVolume])
         {
             // marca e imprime antes de decrementar temp
@@ -132,11 +134,14 @@ float backtracking(ItemArray itens, uint32_t qtdItens, uint32_t capPeso, uint32_
 }
 
 // Procedimento para calcular somatórios de peso e volume dos itens usados
-void somatorio(Item *itens, uint32_t qtdItens, uint32_t *somatorioPeso, uint32_t *somatorioVolume, uint32_t capPeso, uint32_t capVolume)
+void somatorio(Item *itens, uint32_t qtdItens, uint32_t *somatorioPeso, uint32_t *somatorioVolume)
 {
+    *somatorioPeso = 0; // Inicializa somatório
+    *somatorioVolume = 0; // Inicializa somatório
     for (uint32_t i = 0; i < qtdItens; ++i)
     {
-        if (itens[i].usado && *somatorioPeso+itens[i].peso <= capPeso && *somatorioVolume+itens[i].volume <= capVolume)
+        // Apenas soma se o item foi marcado como usado pelo backtracking
+        if (itens[i].usado)
         {
             *somatorioPeso += itens[i].peso;
             *somatorioVolume += itens[i].volume;
@@ -186,16 +191,79 @@ uint32_t removerItensUsados(Item *itens, uint32_t qtd)
     return write;
 }
 
+// Função auxiliar para trocar dois veículos
+void trocarVeiculo(Veiculo *a, Veiculo *b)
+{
+    Veiculo temp = *a;
+    *a = *b;
+    *b = temp;
+}
+
+// Função de comparação: Ordem crescente de capacidade (Peso > Volume)
+int compararVeiculos(const Veiculo *veicA, const Veiculo *veicB)
+{
+    // Prioridade: peso crescente
+    if (veicA->peso != veicB->peso) {
+        return (veicA->peso > veicB->peso) ? 1 : -1;
+    }
+    
+    // Desempate: volume crescente
+    return (veicA->volume > veicB->volume) ? 1 : (veicA->volume < veicB->volume ? -1 : 0);
+}
+
+// Função de particionamento para o Quicksort
+int particionar(Veiculo veiculos[], int baixo, int alto) {
+    // Pivô: último elemento
+    Veiculo pivo = veiculos[alto]; 
+    int i = (baixo - 1); // Índice do menor elemento
+    
+    for (int j = baixo; j <= alto - 1; j++) {
+        // Se o elemento atual for "menor" que o pivô
+        // (usando nossa função de comparação)
+        if (compararVeiculos(&veiculos[j], &pivo) <= 0) {
+            i++; // Incrementa índice do menor elemento
+            trocarVeiculo(&veiculos[i], &veiculos[j]);
+        }
+    }
+    trocarVeiculo(&veiculos[i + 1], &veiculos[alto]);
+    return (i + 1);
+}
+
+// Função Quicksort
+void quickSortVeiculos(Veiculo veiculos[], int baixo, int alto) {
+    if (baixo < alto) {
+        // pi é o índice de particionamento, veiculos[pi] está no lugar certo
+        int pi = particionar(veiculos, baixo, alto);
+
+        // Separa recursivamente os elementos antes e depois do pivô
+        quickSortVeiculos(veiculos, baixo, pi - 1);
+        quickSortVeiculos(veiculos, pi + 1, alto);
+    }
+}
+
 // Procedimento principal de processamento
 void processarDados(VeiculosArray veiculos, ItemArray itens, FILE* output)
 {
+    // SUBSTITUIÇÃO: Ordena os veículos pela capacidade (peso/volume) crescente
+    // usando a implementação do Quicksort.
+    quickSortVeiculos(veiculos.veiculos, 0, veiculos.qtd - 1);
+    
     for (uint32_t i = 0; i < veiculos.qtd; i++)
     {
+        // Reseta o campo 'usado' para todos os itens antes do backtracking,
+        // pois a seleção é feita item a item para o veículo atual.
+        for (uint32_t j = 0; j < itens.qtd; ++j) {
+            itens.itens[j].usado = false;
+        }
+
         uint32_t capP = veiculos.veiculos[i].peso;
         uint32_t capV = veiculos.veiculos[i].volume;
+        // O backtracking marca os itens 'usado' no array 'itens'
         float valorMaximo = backtracking(itens, itens.qtd, capP, capV);
+        
         uint32_t somaPeso = 0, somaVolume = 0;
-        somatorio(itens.itens, itens.qtd, &somaPeso, &somaVolume, capP, capV);
+        // O somatório calcula a carga real do veículo (usando a flag 'usado')
+        somatorio(itens.itens, itens.qtd, &somaPeso, &somaVolume);
 
         uint32_t porcentagemPeso = calcularPorcentagens(somaPeso, capP);
         uint32_t porcentagemVolume = calcularPorcentagens(somaVolume, capV);

@@ -6,15 +6,6 @@
 #include <stdint.h>
 #include <omp.h>
 
-// Estrutura para armazenar o resultado da compressão
-typedef struct ResultadoComp {
-    int bitsTotal;
-    float percentual;
-    uint8_t* buffer;
-    int bufferTam;
-    char algo[4]; // "RLE" ou "HUF"
-} ResultadoComp;
-
 typedef struct Dados
 {
     uint8_t* dados;
@@ -36,6 +27,15 @@ typedef struct NoHuffman
     struct NoHuffman* direita; // Nó direito
 } NoHuffman;
 
+// Estrutura para armazenar o resultado da compressão
+typedef struct ResultadoComp {
+    int bitsTotal;
+    float percentual;
+    uint8_t* buffer;
+    int bufferTam;
+    char algo[4]; // "RLE" ou "HUF"
+} ResultadoComp;
+
 // --- Estrutura de Heap (Min-Heap Array) ---
 typedef struct Heap {
     NoHuffman** array;
@@ -44,7 +44,8 @@ typedef struct Heap {
 } Heap;
 
 // Função auxiliar para converter um caractere hexadecimal para seu valor (0-15)
-int hexCharParaInt(char c) {
+int hexCharParaInt(char c)
+{
     if (c >= '0' && c <= '9') return c - '0';
     if (c >= 'A' && c <= 'F') return c - 'A' + 10;
     if (c >= 'a' && c <= 'f') return c - 'a' + 10;
@@ -122,79 +123,85 @@ ResultadoComp compressaoRLE(Dados* dados)
     uint8_t* sequencia = dados->dados;
     int tamanho = dados->sequenciaTam;
 
-    int bitsAntes = tamanho * 8;
-    int bitsDepois = 0;
-    int bytesDepois = 0;
-
     if (tamanho == 0) {
         res.bitsTotal = 0;
         res.percentual = 0.0f;
         return res;
     }
 
-    /* ---------- PRIMEIRA PASSAGEM ----------
-       Apenas conta bits e bytes gerados
-    */
-    int count = 1;
-    for (int j = 1; j <= tamanho; j++) {
-        if (j < tamanho && sequencia[j] == sequencia[j - 1]) {
-            count++;
-        } else {
-            if (count == 1) {
-                bitsDepois += 8;
-                bytesDepois += 1;
-            } else {
-                int remaining = count;
-                while (remaining > 0) {
-                    int chunk = remaining > 255 ? 255 : remaining;
-                    bitsDepois += 16;
-                    bytesDepois += 2;
-                    remaining -= chunk;
-                }
-            }
-            count = 1;
-        }
-    }
-
-    /* ---------- ALOCAÇÃO ÚNICA ---------- */
-    res.buffer = malloc(bytesDepois * sizeof(uint8_t));
-    res.bufferTam = bytesDepois;
-
-    /* ---------- SEGUNDA PASSAGEM ----------
-       Agora escreve os bytes no buffer
-    */
+    /* --- ALOCAÇÃO INICIAL E ESCRITA EM PASSAGEM ÚNICA --- */
+    // Alocação inicial otimista: 1/4 do tamanho original (típico para repetição)
+    int capacidade = (tamanho / 4) + 1; 
+    res.buffer = malloc(capacidade * sizeof(uint8_t));
     int pos = 0;
-    count = 1;
-
-    for (int j = 1; j <= tamanho; j++) {
-        if (j < tamanho && sequencia[j] == sequencia[j - 1]) {
-            count++;
-        } else {
-            if (count == 1) {
-                res.buffer[pos++] = sequencia[j - 1];
-            } else {
-                int remaining = count;
-                while (remaining > 0) {
-                    int chunk = remaining > 255 ? 255 : remaining;
-                    res.buffer[pos++] = (uint8_t)chunk;
-                    res.buffer[pos++] = sequencia[j - 1];
-                    remaining -= chunk;
-                }
-            }
-            count = 1;
+    int i = 0;
+    
+    // Calcula bitsAntes apenas uma vez
+    const int bitsAntes = tamanho * 8; 
+    
+    while (i < tamanho) {
+        // Variáveis de escopo local para clareza, eliminando run_start
+        const uint8_t byte_atual = sequencia[i];
+        int run_length = 1;
+        
+        // 1. Contar sequência de bytes repetidos
+        while (i + run_length < tamanho && byte_atual == sequencia[i + run_length]) {
+            run_length++;
         }
+        
+        int remaining = run_length;
+        
+        // 2. Codificar em chunks de 255
+        while (remaining > 0) {
+            // Garante que o buffer tem espaço para 2 bytes (Contagem + Dado)
+            if (pos + 2 > capacidade) {
+                capacidade *= 2; // Duplica a capacidade
+                uint8_t* temp = realloc(res.buffer, capacidade * sizeof(uint8_t));
+                if (temp == NULL) {
+                    // Tratar erro de alocação: liberar o que já foi alocado e retornar
+                    free(res.buffer);
+                    res.buffer = NULL;
+                    return res; 
+                }
+                res.buffer = temp;
+            }
+
+            // Contagem máxima é 255 para uint8_t
+            int chunk = remaining > 255 ? 255 : remaining; 
+            
+            // Escreve a Contagem
+            res.buffer[pos++] = (uint8_t)chunk;
+            // Escreve o Byte
+            res.buffer[pos++] = byte_atual;
+            
+            remaining -= chunk;
+        }
+        
+        i += run_length; // Avança o ponteiro de leitura
     }
 
+    /* --- FINALIZAÇÃO E CÁLCULO DE RESULTADOS --- */
+    
+    // Ajusta o buffer para o tamanho exato final (pos)
+    res.bufferTam = pos;
+    uint8_t* temp = realloc(res.buffer, pos * sizeof(uint8_t));
+    if (temp) {
+        res.buffer = temp;
+    }
+    
+    const int bitsDepois = res.bufferTam * 8;
     res.bitsTotal = bitsDepois;
-    res.percentual = 100.0f * (float)bitsDepois / (float)bitsAntes;
+    
+    // Usa 'bitsAntes' calculado e constante
+    res.percentual = (bitsAntes == 0) ? 0.0f : 100.0f * (float)bitsDepois / (float)bitsAntes;
 
     return res;
 }
 
-
 /* ---------------------- Huffman -------------------------- */
 
-Heap* criarHeap(int capacidade) {
+Heap* criarHeap(int capacidade)
+{
     Heap* h = malloc(sizeof(Heap));
     h->tamanho = 0;
     h->capacidade = capacidade;
@@ -202,7 +209,8 @@ Heap* criarHeap(int capacidade) {
     return h;
 }
 
-NoHuffman* criarNo(uint8_t byte, int freq) {
+NoHuffman* criarNo(uint8_t byte, int freq)
+{
     NoHuffman *n = malloc(sizeof(NoHuffman));
     n->byte = byte;
     n->frequencia = freq;
@@ -211,14 +219,16 @@ NoHuffman* criarNo(uint8_t byte, int freq) {
     return n;
 }
 
-void trocarNo(NoHuffman** a, NoHuffman** b) {
+void trocarNo(NoHuffman** a, NoHuffman** b)
+{
     NoHuffman* t = *a;
     *a = *b;
     *b = t;
 }
 
 // Min-Heapify padrão
-void minHeapify(Heap* h, int idx) {
+void minHeapify(Heap* h, int idx)
+{
     int menor = idx;
     int esq = 2 * idx + 1;
     int dir = 2 * idx + 2;
@@ -235,18 +245,23 @@ void minHeapify(Heap* h, int idx) {
     }
 }
 
-void inserirHeap(Heap *h, NoHuffman *novo) {
-    int i = h->tamanho++;
-    h->array[i] = novo;
+// Insere nó no heap (sem manter propriedade de heap)
+void inserirHeap(Heap *h, NoHuffman *novo)
+{
+    h->array[h->tamanho++] = novo;
+}
 
-    // Fix up
-    while (i && h->array[i]->frequencia < h->array[(i - 1) / 2]->frequencia) {
-        trocarNo(&h->array[i], &h->array[(i - 1) / 2]);
-        i = (i - 1) / 2;
+// Constrói o heap mínimo a partir do array atual
+void buildHeap(Heap *h)
+{
+    for (int i = (h->tamanho / 2) - 1; i >= 0; i--) {
+        minHeapify(h, i);
     }
 }
 
-NoHuffman* extrairMin(Heap *h) {
+// Extrai o nó com a menor frequência
+NoHuffman* extrairMin(Heap *h)
+{
     if (h->tamanho == 0) return NULL;
     NoHuffman* raiz = h->array[0];
     h->array[0] = h->array[h->tamanho - 1];
@@ -256,7 +271,8 @@ NoHuffman* extrairMin(Heap *h) {
 }
 
 // Gera tabela de códigos recursivamente
-void gerarCodigos(NoHuffman* raiz, int arr[], int top, char codigos[256][256], int tamanhos[256]) {
+void gerarCodigos(NoHuffman* raiz, int arr[], int top, char codigos[256][256], int tamanhos[256])
+{
     if (raiz->esquerda) {
         arr[top] = 0;
         gerarCodigos(raiz->esquerda, arr, top + 1, codigos, tamanhos);
@@ -275,14 +291,16 @@ void gerarCodigos(NoHuffman* raiz, int arr[], int top, char codigos[256][256], i
     }
 }
 
-void liberarArvore(NoHuffman* raiz) {
+void liberarArvore(NoHuffman* raiz)
+{
     if (!raiz) return;
     liberarArvore(raiz->esquerda);
     liberarArvore(raiz->direita);
     free(raiz);
 }
 
-ResultadoComp compressaoHuffman(Dados *dados) {
+ResultadoComp compressaoHuffman(Dados *dados)
+{
     ResultadoComp res;
     strcpy(res.algo, "HUF");
     res.buffer = NULL;
@@ -298,9 +316,15 @@ ResultadoComp compressaoHuffman(Dados *dados) {
 
     Heap* h = criarHeap(256);
 
-    for (int b = 0; b < 256; b++)
-        if (freq[b] > 0)
+    /* Inserção CRUA: ainda não é heap */
+    for (int b = 0; b < 256; b++) {
+        if (freq[b] > 0) {
             inserirHeap(h, criarNo((uint8_t)b, freq[b]));
+        }
+    }
+
+    /* Construção do heap mínimo por frequência */
+    buildHeap(h);
 
     // Construção da árvore
     while (h->tamanho > 1) {
@@ -358,15 +382,15 @@ ResultadoComp compressaoHuffman(Dados *dados) {
 
     res.bitsTotal = bitsDepois;
     res.percentual = 100.0f * (float)bitsDepois / (float)bitsAntes;
-
-    liberarArvore(raiz);
+    
     free(h->array);
     free(h);
     
     return res;
 }
 
-void escreverHex(FILE* f, uint8_t* buffer, int tam) {
+void escreverHex(FILE* f, uint8_t* buffer, int tam)
+{
     for(int i=0; i<tam; i++) {
         fprintf(f, "%02X", buffer[i]);
     }
@@ -422,9 +446,25 @@ int main(int argc, char *argv[])
         else
         {
             ResultadoComp* v = (huf.bitsTotal < rle.bitsTotal) ? &huf : &rle;
-            offset += snprintf(bufferSaida + offset, 512 - offset, "%d->%s(%.2f%%)=", i, v->algo, v->percentual);
-            for (int j = 0; j < v->bufferTam && offset < 512 - 2; j++)
-                offset += snprintf(bufferSaida + offset, 512 - offset, "%02X", v->buffer[j]);
+
+            if (strcmp(v->algo, "HUF") == 0)
+            {
+                offset += snprintf(bufferSaida + offset, 512 - offset,
+                                "%d->HUF(%.2f%%)=",
+                                i, v->percentual);
+
+                for (int j = 0; j < v->bufferTam && offset < 512 - 2; j++)
+                    offset += snprintf(bufferSaida + offset, 512 - offset, "%02X", v->buffer[j]);
+            }
+            else
+            {
+                offset += snprintf(bufferSaida + offset, 512 - offset,
+                                "%d->RLE(%.2f%%)=",
+                                i, v->percentual);
+
+                for (int j = 0; j < v->bufferTam && offset < 512 - 2; j++)
+                    offset += snprintf(bufferSaida + offset, 512 - offset, "%02X", v->buffer[j]);
+            }
         }
 
         saidas[i] = bufferSaida;
