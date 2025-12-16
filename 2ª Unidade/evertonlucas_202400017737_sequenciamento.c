@@ -1,8 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <time.h>
-#include <stdint.h>
 
 typedef struct Gene
 {
@@ -13,7 +11,7 @@ typedef struct Doenca
 {
     char nomeDoenca[100];
     Gene* genes;
-    uint32_t qtdGenes;
+    int qtdGenes;
 } Doenca;
 
 typedef struct Arquivo
@@ -21,21 +19,21 @@ typedef struct Arquivo
     char dna[100000];
     Doenca* doencas;
     char** nomesGenes;
-    uint32_t qtdDoencas;
-    uint32_t tamanhoSubGenes;
+    int qtdDoencas;
+    int tamanhoSubGenes;
 } Arquivo;
 
 typedef struct Resultado
 {
     char nomeDoenca[100];
-    uint32_t probabilidade;
+    int probabilidade;
 } Resultado;
 
 // Função para ler dados do arquivo de entrada
 Arquivo lerArquivo(FILE* arquivo)
 {
     Arquivo dadosArquivo;
-    uint32_t qtdDoencas = 0, totalGenes = 0;
+    int qtdDoencas = 0, totalGenes = 0;
     
     // Lendo tamanho dos subgenes
     if (fscanf(arquivo, "%d", &dadosArquivo.tamanhoSubGenes) != 1) dadosArquivo.tamanhoSubGenes = 0;
@@ -49,16 +47,16 @@ Arquivo lerArquivo(FILE* arquivo)
     dadosArquivo.doencas = malloc(qtdDoencas * sizeof(Doenca));
 
     // Lendo cada doença e seus respectivos genes
-    for (uint32_t i = 0; i < qtdDoencas; ++i)
+    for (int i = 0; i < qtdDoencas; ++i)
     {
         dadosArquivo.doencas[i].qtdGenes = 0;
         fscanf(arquivo, "%s %d", dadosArquivo.doencas[i].nomeDoenca, &dadosArquivo.doencas[i].qtdGenes);
         
-        uint32_t qtdGenes = dadosArquivo.doencas[i].qtdGenes;
+        int qtdGenes = dadosArquivo.doencas[i].qtdGenes;
         dadosArquivo.doencas[i].genes = malloc(qtdGenes * sizeof(Gene));
         totalGenes += qtdGenes;
         
-        for (uint32_t j = 0; j < qtdGenes; ++j)
+        for (int j = 0; j < qtdGenes; ++j)
             fscanf(arquivo, "%s", dadosArquivo.doencas[i].genes[j].nomeGene);
     }
 
@@ -66,11 +64,11 @@ Arquivo lerArquivo(FILE* arquivo)
 }
 
 // Procedimento que computa array de prefixos (LPS) para o KMP
-void computarLPS(const char* padrao, uint32_t M, uint32_t* lps)
+void computarLPS(const char* padrao, int M, int* lps)
 {
-    uint32_t len = 0;
+    int len = 0;
     lps[0] = 0;
-    uint32_t i = 1;
+    int i = 1;
     while (i < M) {
         if (padrao[i] == padrao[len])
         {
@@ -91,14 +89,19 @@ void computarLPS(const char* padrao, uint32_t M, uint32_t* lps)
 }
 
 // Função para calcular a compatibilidade entre o DNA e um gene específico
-uint32_t calcularCompatibilidade(const char* dna, uint32_t dnaLen, const char* gene, uint32_t geneLen, const uint32_t L)
+int calcularCompatibilidade(const char* dna, const char* gene, const int L)
 {
-    uint32_t totalMatchs = 0;
-    uint32_t geneIdx = 0; // Onde estamos no Gene global
-    uint32_t dnaIdx = 0;  // Onde estamos no DNA global
+    // Tamanho do DNA e do Gene
+    int dnaLen = (int)strlen(dna);
+    int geneLen = (int)strlen(gene);
+    if (dnaLen == 0 || geneLen == 0 || L <= 0) return 0;
+
+    int totalMatchs = 0;
+    int geneIdx = 0; // Onde estamos no Gene global
+    int dnaIdx = 0;  // Onde estamos no DNA global
 
     // Aloca vetor LPS uma única vez com o tamanho máximo necessário
-    uint32_t *lps = (uint32_t*)malloc(sizeof(uint32_t) * geneLen);
+    int *lps = (int*)malloc(sizeof(int) * geneLen);
     if (!lps) return 0;
 
     // Enquanto houver gene para processar e DNA para procurar
@@ -106,7 +109,7 @@ uint32_t calcularCompatibilidade(const char* dna, uint32_t dnaLen, const char* g
     {
         // Define o "padrão" atual como sendo o restante do gene
         const char* subGene = &gene[geneIdx];
-        uint32_t subGeneLen = geneLen - geneIdx;
+        int subGeneLen = geneLen - geneIdx;
 
         // Se o que sobrou do gene é menor que L, impossível dar match válido
         if (subGeneLen < L) break;
@@ -114,10 +117,10 @@ uint32_t calcularCompatibilidade(const char* dna, uint32_t dnaLen, const char* g
         // Calcula LPS apenas para o pedaço restante do gene
         computarLPS(subGene, subGeneLen, lps);
 
-        uint32_t j = 0; // Índice de match no subGene
-        uint32_t matchEncontrado = 0;
-        uint32_t tamMatch = 0;
-        uint32_t k;
+        int j = 0; // Índice de match no subGene
+        int matchEncontrado = 0;
+        int tamMatch = 0;
+        int k;
 
         // Busca KMP no DNA a partir de onde paramos (dnaIdx)
         for (k = dnaIdx; k < dnaLen; k++)
@@ -170,34 +173,31 @@ uint32_t calcularCompatibilidade(const char* dna, uint32_t dnaLen, const char* g
     // Calcula percentual arredondado
     double percentual = ((double)totalMatchs * 100.0) / (double)geneLen;
 
-    return (uint32_t)(percentual + (percentual < 0.0 ? -0.5 : 0.5));
+    return (int)(percentual + (percentual < 0.0 ? -0.5 : 0.5));
 }
 
 // Função para diagnosticar a doença com base no DNA e seus genes
-uint32_t diagnosticarDoenca(const char* DNA, Gene* genes, uint32_t numGenes, uint32_t L)
+int diagnosticarDoenca(const char* DNA, Gene* genes, int numGenes, int L)
 {
     if (!DNA || !genes || numGenes <= 0 || L <= 0) return 0;
-    uint32_t genes_detectados = 0;
-    // Tamanho do DNA e do Gene
-    uint32_t dnaLen = (uint32_t)strlen(DNA);
-    
-    for (uint32_t i = 0; i < numGenes; i++)
+    int genes_detectados = 0;
+
+    for (int i = 0; i < numGenes; i++)
     {
-        uint32_t geneLen = (uint32_t)strlen(genes[i].nomeGene);
-        uint32_t compatibilidade = calcularCompatibilidade(DNA, dnaLen, genes[i].nomeGene, geneLen, L);
+        int compatibilidade = calcularCompatibilidade(DNA, genes[i].nomeGene, L);
         if (compatibilidade >= 90) genes_detectados++;
     }
 
     double resultado = ((double)genes_detectados / (double)numGenes) * 100.0;
     
-    return (uint32_t)(resultado + 0.5);
+    return (int)(resultado + 0.5);
 }
 
 // Função para ordenar os resultados em ordem decrescente de probabilidade
-void ordenarResultados(Resultado* resultados, uint32_t qtdResultados)
+void ordenarResultados(Resultado* resultados, int qtdResultados)
 {
     // Insertion Sort
-    for (uint32_t i = 1; i < qtdResultados; i++)
+    for (int i = 1; i < qtdResultados; i++)
     {
         Resultado key = resultados[i];
         int j = i - 1;
@@ -213,9 +213,9 @@ void ordenarResultados(Resultado* resultados, uint32_t qtdResultados)
 }
 
 // Procedimento para escrever os resultados no arquivo de saída
-void escreverResultados(FILE* output, Resultado* resultados, uint32_t qtdResultados)
+void escreverResultados(FILE* output, Resultado* resultados, int qtdResultados)
 {
-    for (uint32_t i = 0; i < qtdResultados; i++)
+    for (int i = 0; i < qtdResultados; i++)
     {
         fprintf(output, "%s->%d%%", resultados[i].nomeDoenca, resultados[i].probabilidade);
         if (i < qtdResultados - 1) fprintf(output, "\n");
@@ -252,10 +252,10 @@ int main(int argc, char *argv[])
     if (dadosArquivo.qtdDoencas > 0)
     {
         // Para cada doença, calcula a probabilidade
-        for (uint32_t i = 0; i < dadosArquivo.qtdDoencas; i++)
+        for (int i = 0; i < dadosArquivo.qtdDoencas; i++)
         {
             Doenca doencaAtual = dadosArquivo.doencas[i];
-            uint32_t resultado = diagnosticarDoenca(dadosArquivo.dna, doencaAtual.genes, doencaAtual.qtdGenes, dadosArquivo.tamanhoSubGenes);
+            int resultado = diagnosticarDoenca(dadosArquivo.dna, doencaAtual.genes, doencaAtual.qtdGenes, dadosArquivo.tamanhoSubGenes);
             strcpy(resultados[i].nomeDoenca, doencaAtual.nomeDoenca);
             resultados[i].probabilidade = resultado;
         }
@@ -269,10 +269,9 @@ int main(int argc, char *argv[])
     }
 
     // Liberação de memória básica
-    for(uint32_t i=0; i<dadosArquivo.qtdDoencas; i++)
+    for(int i=0; i<dadosArquivo.qtdDoencas; i++)
         free(dadosArquivo.doencas[i].genes);
     free(dadosArquivo.doencas);
-
     // Fechamento dos arquivos
     fclose(input);
     fclose(output);
