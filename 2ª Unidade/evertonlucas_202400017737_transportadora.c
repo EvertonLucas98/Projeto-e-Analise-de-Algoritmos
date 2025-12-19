@@ -191,63 +191,9 @@ uint32_t removerItensUsados(Item *itens, uint32_t qtd)
     return write;
 }
 
-// Função auxiliar para trocar dois veículos
-void trocarVeiculo(Veiculo *a, Veiculo *b)
-{
-    Veiculo temp = *a;
-    *a = *b;
-    *b = temp;
-}
-
-// Função de comparação: Ordem crescente de capacidade (Peso > Volume)
-int compararVeiculos(const Veiculo *veicA, const Veiculo *veicB)
-{
-    // Prioridade: peso crescente
-    if (veicA->peso != veicB->peso) {
-        return (veicA->peso > veicB->peso) ? 1 : -1;
-    }
-    
-    // Desempate: volume crescente
-    return (veicA->volume > veicB->volume) ? 1 : (veicA->volume < veicB->volume ? -1 : 0);
-}
-
-// Função de particionamento para o Quicksort
-int particionar(Veiculo veiculos[], int baixo, int alto) {
-    // Pivô: último elemento
-    Veiculo pivo = veiculos[alto]; 
-    int i = (baixo - 1); // Índice do menor elemento
-    
-    for (int j = baixo; j <= alto - 1; j++) {
-        // Se o elemento atual for "menor" que o pivô
-        // (usando nossa função de comparação)
-        if (compararVeiculos(&veiculos[j], &pivo) <= 0) {
-            i++; // Incrementa índice do menor elemento
-            trocarVeiculo(&veiculos[i], &veiculos[j]);
-        }
-    }
-    trocarVeiculo(&veiculos[i + 1], &veiculos[alto]);
-    return (i + 1);
-}
-
-// Função Quicksort
-void quickSortVeiculos(Veiculo veiculos[], int baixo, int alto) {
-    if (baixo < alto) {
-        // pi é o índice de particionamento, veiculos[pi] está no lugar certo
-        int pi = particionar(veiculos, baixo, alto);
-
-        // Separa recursivamente os elementos antes e depois do pivô
-        quickSortVeiculos(veiculos, baixo, pi - 1);
-        quickSortVeiculos(veiculos, pi + 1, alto);
-    }
-}
-
 // Procedimento principal de processamento
 void processarDados(VeiculosArray veiculos, ItemArray itens, FILE* output)
 {
-    // SUBSTITUIÇÃO: Ordena os veículos pela capacidade (peso/volume) crescente
-    // usando a implementação do Quicksort.
-    quickSortVeiculos(veiculos.veiculos, 0, veiculos.qtd - 1);
-    
     for (uint32_t i = 0; i < veiculos.qtd; i++)
     {
         // Reseta o campo 'usado' para todos os itens antes do backtracking,

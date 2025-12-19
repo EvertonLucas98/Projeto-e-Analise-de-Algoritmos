@@ -3,6 +3,7 @@
 #include <string.h>
 #include <stdint.h>
 #include <omp.h>
+#include <time.h>
 
 typedef struct Dados
 {
@@ -413,6 +414,7 @@ void escreverHex(FILE* f, uint8_t* buffer, int tam)
 
 int main(int argc, char *argv[])
 {
+    clock_t inicio = clock();
     if (argc != 3)
     {
         printf("Uso: %s <input> <output>\n", argv[0]);
@@ -436,6 +438,7 @@ int main(int argc, char *argv[])
     int qtdDados = dadosArquivo.qtdDados;
 
     char** saidas = malloc(qtdDados * sizeof(char*));
+    
     #ifdef _OPENMP
     #pragma omp parallel for
     #endif
@@ -444,18 +447,26 @@ int main(int argc, char *argv[])
         ResultadoComp rle = compressaoRLE(&dadosArquivo.dados[i]);
         ResultadoComp huf = compressaoHuffman(&dadosArquivo.dados[i]);
 
-        char* bufferSaida = malloc(512); // tamanho seguro para saída textual
+        // CALCULAR O TAMANHO NECESSÁRIO PARA O BUFFER DE TEXTO
+        // Precisamos de espaço para: "Indice->ALGO(XXX.XX%)=" + (Dados * 2) + '\n' + '\0'
+        // Uma estimativa segura é: (Soma dos tamanhos dos buffers * 2) + 200 bytes de cabeçalho/formatação
+        int tamanhoNecessario = (rle.bufferTam + huf.bufferTam) * 2 + 256;
+        
+        char* bufferSaida = malloc(tamanhoNecessario);
+
         int offset = 0;
 
+        // Caso de empate: imprime os dois
         if (huf.bitsTotal == rle.bitsTotal)
         {
-            offset += snprintf(bufferSaida + offset, 512 - offset, "%d->HUF(%.2f%%)=", i, huf.percentual);
-            for (int j = 0; j < huf.bufferTam && offset < 512 - 2; j++)
-                offset += snprintf(bufferSaida + offset, 512 - offset, "%02X", huf.buffer[j]);
+            offset += snprintf(bufferSaida + offset, tamanhoNecessario - offset, "%d->HUF(%.2f%%)=", i, huf.percentual);
+            for (int j = 0; j < huf.bufferTam; j++)
+                offset += snprintf(bufferSaida + offset, tamanhoNecessario - offset, "%02X", huf.buffer[j]);
 
-            offset += snprintf(bufferSaida + offset, 512 - offset, "\n%d->RLE(%.2f%%)=", i, rle.percentual);
-            for (int j = 0; j < rle.bufferTam && offset < 512 - 2; j++)
-                offset += snprintf(bufferSaida + offset, 512 - offset, "%02X", rle.buffer[j]);
+            // Adiciona quebra de linha e o segundo resultado
+            offset += snprintf(bufferSaida + offset, tamanhoNecessario - offset, "\n%d->RLE(%.2f%%)=", i, rle.percentual);
+            for (int j = 0; j < rle.bufferTam; j++)
+                offset += snprintf(bufferSaida + offset, tamanhoNecessario - offset, "%02X", rle.buffer[j]);
         }
         else
         {
@@ -463,22 +474,17 @@ int main(int argc, char *argv[])
 
             if (strcmp(v->algo, "HUF") == 0)
             {
-                offset += snprintf(bufferSaida + offset, 512 - offset,
-                                "%d->HUF(%.2f%%)=",
-                                i, v->percentual);
-
-                for (int j = 0; j < v->bufferTam && offset < 512 - 2; j++)
-                    offset += snprintf(bufferSaida + offset, 512 - offset, "%02X", v->buffer[j]);
+                offset += snprintf(bufferSaida + offset, tamanhoNecessario - offset,
+                                "%d->HUF(%.2f%%)=", i, v->percentual);
             }
             else
             {
-                offset += snprintf(bufferSaida + offset, 512 - offset,
-                                "%d->RLE(%.2f%%)=",
-                                i, v->percentual);
-
-                for (int j = 0; j < v->bufferTam && offset < 512 - 2; j++)
-                    offset += snprintf(bufferSaida + offset, 512 - offset, "%02X", v->buffer[j]);
+                offset += snprintf(bufferSaida + offset, tamanhoNecessario - offset,
+                                "%d->RLE(%.2f%%)=", i, v->percentual);
             }
+
+            for (int j = 0; j < v->bufferTam; j++)
+                offset += snprintf(bufferSaida + offset, tamanhoNecessario - offset, "%02X", v->buffer[j]);
         }
 
         saidas[i] = bufferSaida;
@@ -501,6 +507,10 @@ int main(int argc, char *argv[])
         free(dadosArquivo.dados[i].dados);
     free(dadosArquivo.dados);
     free(saidas);
+
+    clock_t fim = clock();
+    double tempo_gasto = (double)(fim - inicio) / CLOCKS_PER_SEC;
+    printf("Tempo de execucao: %.2f segundos\n", tempo_gasto);
 
     // Fechar arquivos
     fclose(input);
