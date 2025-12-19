@@ -1,8 +1,6 @@
-#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <time.h>
 #include <stdint.h>
 #include <omp.h>
 
@@ -245,10 +243,22 @@ void minHeapify(Heap* h, int idx)
     }
 }
 
-// Insere nó no heap (sem manter propriedade de heap)
+// Insere nó no heap
 void inserirHeap(Heap *h, NoHuffman *novo)
 {
-    h->array[h->tamanho++] = novo;
+    int i = h->tamanho++;
+    h->array[i] = novo;
+
+    // Heapify-up (sift-up)
+    while (i > 0) {
+        int pai = (i - 1) / 2;
+
+        if (h->array[pai]->frequencia <= h->array[i]->frequencia)
+            break;
+
+        trocarNo(&h->array[pai], &h->array[i]);
+        i = pai;
+    }
 }
 
 // Constrói o heap mínimo a partir do array atual
@@ -314,16 +324,24 @@ ResultadoComp compressaoHuffman(Dados *dados)
     for (int j = 0; j < tam; j++)
         freq[dados->dados[j]]++;
 
-    Heap* h = criarHeap(256);
-
-    /* Inserção CRUA: ainda não é heap */
+    // Contar quantos símbolos únicos existem
+    int simbolosUnicos = 0;
+    for (int b = 0; b < 256; b++) {
+        if (freq[b] > 0) simbolosUnicos++;
+    }
+    
+    // Criar heap com capacidade exata
+    Heap* h = criarHeap(simbolosUnicos);
+    
+    // ADICIONAR símbolos diretamente no array (ainda não é heap)
     for (int b = 0; b < 256; b++) {
         if (freq[b] > 0) {
-            inserirHeap(h, criarNo((uint8_t)b, freq[b]));
+            h->array[h->tamanho] = criarNo((uint8_t)b, freq[b]);
+            h->tamanho++;
         }
     }
-
-    /* Construção do heap mínimo por frequência */
+    
+    // AGORA construir heap em tempo linear O(n)
     buildHeap(h);
 
     // Construção da árvore
@@ -341,13 +359,11 @@ ResultadoComp compressaoHuffman(Dados *dados)
     NoHuffman* raiz = extrairMin(h);
 
     // Gerar Códigos e Empacotar Bits
-    char mapaCodigos[256][256]; // Tabela de strings "0101"
+    char mapaCodigos[256][256];
     int mapaTamanhos[256] = {0};
     int arrAux[256];
     
-    // Caso especial: apenas 1 símbolo (ex: AAAAA) -> Huffman gera 1 bit por simbolo (0)
     if (raiz && !raiz->esquerda && !raiz->direita) {
-        // Simbolizamos como bit 0
         mapaCodigos[raiz->byte][0] = '0';
         mapaCodigos[raiz->byte][1] = '\0';
         mapaTamanhos[raiz->byte] = 1;
@@ -359,7 +375,6 @@ ResultadoComp compressaoHuffman(Dados *dados)
     int bitsTotais = 0;
     for(int i=0; i<tam; i++) bitsTotais += mapaTamanhos[dados->dados[i]];
     
-    // Arredondar para bytes completos para alocação
     res.bufferTam = (bitsTotais + 7) / 8;
     if (res.bufferTam == 0 && bitsTotais > 0) res.bufferTam = 1;
     res.buffer = calloc(res.bufferTam, sizeof(uint8_t));
@@ -371,7 +386,6 @@ ResultadoComp compressaoHuffman(Dados *dados)
         char* codigo = mapaCodigos[byte];
         for (int k = 0; codigo[k] != '\0'; k++) {
             if (codigo[k] == '1') {
-                // Seta o bit correspondente
                 res.buffer[bitPos / 8] |= (1 << (7 - (bitPos % 8)));
             }
             bitPos++;
@@ -383,8 +397,9 @@ ResultadoComp compressaoHuffman(Dados *dados)
     res.bitsTotal = bitsDepois;
     res.percentual = 100.0f * (float)bitsDepois / (float)bitsAntes;
     
-    free(h->array);
-    free(h);
+    liberarArvore(raiz);  // Primeiro libera árvore
+    free(h->array);       // Depois array do heap
+    free(h);              // Finalmente estrutura heap
     
     return res;
 }
@@ -398,7 +413,6 @@ void escreverHex(FILE* f, uint8_t* buffer, int tam)
 
 int main(int argc, char *argv[])
 {
-    clock_t start = clock();
     if (argc != 3)
     {
         printf("Uso: %s <input> <output>\n", argv[0]);
@@ -488,10 +502,7 @@ int main(int argc, char *argv[])
     free(dadosArquivo.dados);
     free(saidas);
 
-    clock_t end = clock();
-    double time_spent = (double)(end - start) / CLOCKS_PER_SEC;
-    printf("Tempo de execucao: %.6f segundos\n", time_spent);
-
+    // Fechar arquivos
     fclose(input);
     fclose(output);
 
