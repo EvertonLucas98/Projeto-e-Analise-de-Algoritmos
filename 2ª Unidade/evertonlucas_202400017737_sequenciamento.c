@@ -248,6 +248,7 @@ int calcularCompatibilidade(const char* dna, const char* gene, int L, HashTable*
     int dnaLen = strlen(dna);
     int geneLen = strlen(gene);
     if (L > geneLen || L > dnaLen || L <= 0) return 0;
+
     // Total de caracteres que deram match
     int totalMatch = 0;
     // Posição atual no gene
@@ -263,13 +264,13 @@ int calcularCompatibilidade(const char* dna, const char* gene, int L, HashTable*
         // Array de posições no DNA onde o hash foi encontrado
         int* posicoes = buscarHash(hashtable, geneHash, &numPosicoes);
         // Flag para indicar se encontrou match
-        int encontrouMatch = 0;
+        int melhorMatchDestePonto = 0;
 
-        // Verifica todas as posições encontradas
+        // Procurando o MAIOR match entre todas as ocorrências
         if (posicoes && numPosicoes > 0)
         {
             // Verifica cada posição para match exato
-            for (int i = 0; i < numPosicoes && !encontrouMatch; i++)
+            for (int i = 0; i < numPosicoes; i++)
             {
                 // Posição no DNA
                 int dnaPos = posicoes[i];
@@ -278,24 +279,31 @@ int calcularCompatibilidade(const char* dna, const char* gene, int L, HashTable*
                 if (verificarMatchExato(dna, gene, dnaPos, genePos, L))
                 {
                     // Estende o match além de L
-                    int matchLen = estenderMatch(dna, dnaLen, gene, geneLen, dnaPos, genePos, L);
-                    // Atualiza total de caracteres que deram match
-                    totalMatch += matchLen;
-                    // Avança a posição do gene
-                    genePos += matchLen;
-                    // Marca que encontrou match
-                    encontrouMatch = 1;
+                    int matchAtual = estenderMatch(dna, dnaLen, gene, geneLen, dnaPos, genePos, L);
+
+                    // Atualiza o melhor match deste ponto
+                    if (matchAtual > melhorMatchDestePonto)
+                        melhorMatchDestePonto = matchAtual;
                 }
             }
         }
 
-        // Se não encontrou match, avança apenas uma posição no gene
-        if (!encontrouMatch)
+        // Se encontrou algum match, avança a posição do gene
+        if (melhorMatchDestePonto > 0)
+        {
+            // Atualiza total de caracteres que deram match
+            totalMatch += melhorMatchDestePonto;
+            // Avança a posição do gene
+            genePos += melhorMatchDestePonto;
+        } else // Se não encontrou match
+            // Avança apenas uma posição no gene
             genePos++;
     }
+
+    if (geneLen == 0) return 0; // Evita divisão por zero
+    
     // Calcula o percentual de compatibilidade
-    double percentual = ((double)totalMatch * 100.0) / (double)geneLen;
-    return (int)(percentual + 0.5);
+    return (totalMatch * 100 + (geneLen / 2)) / geneLen;
 }
 
 // Função para ler dados do arquivo
