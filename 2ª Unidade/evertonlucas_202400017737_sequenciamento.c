@@ -14,7 +14,7 @@ typedef struct Doenca {
 } Doenca;
 
 typedef struct Arquivo {
-    char dna[100000];
+    char dna[50000];
     Doenca* doencas; // Array dinâmico de doenças
     int qtdDoencas;
     int tamanhoSubGenes;
@@ -465,9 +465,11 @@ int main(int argc, char *argv[])
     // Ordena e escreve os resultados
     ordenarResultados(resultados, dadosArquivo.qtdDoencas);
     escreverResultados(output, resultados, dadosArquivo.qtdDoencas);
+    
     // Libera memória
     free(resultados);
     liberarMemoria(&dadosArquivo);
+
     // Fecha os arquivos
     fclose(input);
     fclose(output);
