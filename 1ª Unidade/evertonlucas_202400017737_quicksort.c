@@ -323,6 +323,18 @@ int* copiaVetor(int *original, int n)
     return copia;
 }
 
+// Procedimento para escrever resultados no arquivo
+void escreverResultados(FILE* arquivo, MetodoResultado *resultados, int qtdResultados)
+{
+    // Escreve os resultados no arquivo
+    fprintf(arquivo, "[%d]:", qtdResultados);
+    for (int m = 0; m < 6; m++)
+    {
+        fprintf(arquivo, "%s(%d)", resultados[m].nome, resultados[m].custo);
+        if (m < 5) fprintf(arquivo, ",");
+    }
+}
+
 // Procedimento para liberar memória
 void liberarSetArrays(SetArrays *set)
 {
@@ -338,6 +350,41 @@ void liberarSetArrays(SetArrays *set)
         // Zera os campos
         set->arrays = NULL;
         set->qtdArrays = 0;
+    }
+}
+
+// Procedimento para processar os dados lidos
+void processarDados(FILE* output, SetArrays dadosLidos, char nomesMetodos[6][3])
+{
+    for (int i = 0; i < dadosLidos.qtdArrays; i++)
+    {
+        // Armazenar resultados dos métodos
+        MetodoResultado resultados[6];
+        
+        // Testar cada método de ordenação
+        for (int method = 0; method < 6; method++)
+        {
+            // Inicializa estatísticas
+            Estatisticas stats = {0, 0};
+            // Cria cópia do array original
+            int *arrayTemp = copiaVetor(dadosLidos.arrays[i].array, dadosLidos.arrays[i].size);
+            // Executa o Quick Sort com o método atual
+            quickSort(arrayTemp, 0, dadosLidos.arrays[i].size - 1, method + 1, &stats);
+            // Armazena resultados
+            strcpy(resultados[method].nome, nomesMetodos[method]);
+            // Armazena o número de trocas
+            resultados[method].custo = stats.trocas + stats.chamadas;
+            // Libera memória temporária
+            free(arrayTemp);
+        }
+        
+        // Ordenar de forma estável pelos resultados
+        mergeSort(resultados, 0, 5);
+        // Gerar output no formato especificado
+        escreverResultados(output, resultados, dadosLidos.arrays[i].size);
+        // Nova linha entre os arrays, exceto após o último
+        if (i < dadosLidos.qtdArrays - 1)
+            fprintf(output, "\n");
     }
 }
 
@@ -371,45 +418,8 @@ int main(int argc, char *argv[])
 
     // Nomes dos métodos na ordem dos casos (1-6)
     char nomesMetodos[6][3] = {"LP", "LM", "LA", "HP", "HM", "HA"};
-    
     // Processar cada array
-    for (int i = 0; i < dadosLidos.qtdArrays; i++)
-    {
-        // Armazenar resultados dos métodos
-        MetodoResultado resultados[6];
-        
-        // Testar cada método de ordenação
-        for (int method = 0; method < 6; method++)
-        {
-            // Inicializa estatísticas
-            Estatisticas stats = {0, 0};
-            // Cria cópia do array original
-            int *arrayTemp = copiaVetor(dadosLidos.arrays[i].array, dadosLidos.arrays[i].size);
-            // Executa o Quick Sort com o método atual
-            quickSort(arrayTemp, 0, dadosLidos.arrays[i].size - 1, method + 1, &stats);
-            // Armazena resultados
-            strcpy(resultados[method].nome, nomesMetodos[method]);
-            // Armazena o número de trocas
-            resultados[method].custo = stats.trocas + stats.chamadas;
-            // Libera memória temporária
-            free(arrayTemp);
-        }
-        
-        // Ordenar de forma estável pelos resultados
-        mergeSort(resultados, 0, 5);
-        
-        // Gerar output no formato especificado
-        fprintf(output, "[%d]:", dadosLidos.arrays[i].size);
-        for (int m = 0; m < 6; m++)
-        {
-            fprintf(output, "%s(%d)", resultados[m].nome, resultados[m].custo);
-            if (m < 5) fprintf(output, ",");
-        }
-
-        if (i < dadosLidos.qtdArrays - 1)
-            fprintf(output, "\n");
-    }
-
+    processarDados(output, dadosLidos, nomesMetodos);
     // Libera memória
     liberarSetArrays(&dadosLidos);
     // Calcula e imprime tempo de execução
