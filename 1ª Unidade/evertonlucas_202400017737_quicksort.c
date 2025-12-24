@@ -28,38 +28,34 @@ typedef struct
     int chamadas;
 } Estatisticas;
 
-/*
-[6]:LP(15),HP(16),LM(19),HM(19),HA(20),LA(22)
-[4]:LP(10),HP(10),LM(11),LA(11),HM(12),HA(12)
-[7]:HP(17),LM(18),LP(23),HM(26),HA(27),LA(30)
-[10]:LM(28),HP(28),LP(33),HA(35),HM(37),LA(38)
-
-[1842]:HP(8369),HA(10267),HM(10661),LM(14028),LP(14405),LA(17752)
-[1039]:HP(4487),HA(5615),HM(5807),LM(7148),LA(7967),LP(8170)
-*/
-
 // Função para ler dados do arquivo
 SetArrays lerDados(FILE* arquivo)
 {
+    // Inicializa resultado
     SetArrays resultado = {NULL, 0};
     int qtdArrays;
-    
-    if (fscanf(arquivo, "%d", &qtdArrays) != 1 || qtdArrays <= 0) {
+    // Lê a quantidade de arrays
+    if (fscanf(arquivo, "%d", &qtdArrays) != 1 || qtdArrays <= 0)
         return resultado;
-    }
 
+    // Aloca memória para os arrays
     Array *arrays = malloc(sizeof(Array) * qtdArrays);
-    if (!arrays) {
+    if (!arrays)
         return resultado;
-    }
 
-    for (int i = 0; i < qtdArrays; ++i) {
-        if (fscanf(arquivo, "%d", &arrays[i].size) != 1 || arrays[i].size < 0) {
+    // Lê cada array
+    for (int i = 0; i < qtdArrays; ++i)
+    {
+        // Lê o tamanho do array
+        if (fscanf(arquivo, "%d", &arrays[i].size) != 1 || arrays[i].size < 0)
+        {
             arrays[i].array = NULL;
             continue;
         }
         
-        if (arrays[i].size > 0) {
+        // Aloca memória para o array
+        if (arrays[i].size > 0)
+        {
             arrays[i].array = malloc(sizeof(int) * arrays[i].size);
             if (!arrays[i].array) {
                 for (int k = 0; k <= i; ++k) {
@@ -68,15 +64,15 @@ SetArrays lerDados(FILE* arquivo)
                 free(arrays);
                 return resultado;
             }
-        } else {
+        } else
+        {
             arrays[i].array = NULL;
         }
 
-        for (int j = 0; j < arrays[i].size; ++j) {
-            if (fscanf(arquivo, "%d", &arrays[i].array[j]) != 1) {
+        // Lê os elementos do array
+        for (int j = 0; j < arrays[i].size; ++j)
+            if (fscanf(arquivo, "%d", &arrays[i].array[j]) != 1)
                 arrays[i].array[j] = 0;
-            }
-        }
     }
 
     resultado.arrays = arrays;
@@ -88,31 +84,35 @@ SetArrays lerDados(FILE* arquivo)
 // Procedimento para trocar dois elementos com contagem
 void swap(int *a, int *b, Estatisticas *stats)
 {
+    // Incrementa o contador de trocas
     stats->trocas++;
+    // Troca os valores
     int temp = *a;
     *a = *b;
     *b = temp;
 }
 
 // Função que retorna o índice da mediana de três
-int mediana(int *array, int low, int high)
+int mediana(int *array, int low, int mid, int high)
 {
-    // Calcula o índice do elemento do meio
-    int mid = low + (high - low) / 2;
     // Obtém os valores dos três elementos
     int a = array[low], b = array[mid], c = array[high];
-    // Retorna o índice do valor mediano
-    if ((a <= b && b <= c) || (c <= b && b <= a)) return mid;
-    if ((b <= a && a <= c) || (c <= a && a <= b)) return low;
 
-    return high;
+    // Compara para encontrar a mediana
+    if ((a <= b && b <= c) || (c <= b && b <= a))
+        return mid;
+    else if ((b <= a && a <= c) || (c <= a && a <= b))
+        return low;
+    else
+        return high;
 }
 
-// Função QuickSort Lomuto Padrão (V)
+// Função QuickSort Lomuto Padrão
 int lomutoPadrao(int *array, int low, int high, Estatisticas *stats)
 {
     // Usa o último elemento como pivô
     int pivo = array[high];
+    // Índice do menor elemento
     int i = low - 1;
 
     // Percorre todos os elementos
@@ -135,29 +135,31 @@ int lomutoPadrao(int *array, int low, int high, Estatisticas *stats)
 // Função para Lomuto com mediana de três
 int lomutoMediana(int *array, int low, int high, Estatisticas *stats)
 {
-    // Se necessário, usa o Lomuto padrão
-    if (high - low < 2)
-        return lomutoPadrao(array, low, high, stats);
-
+    // Calcula o tamanho do subarray
+    int n = high - low + 1;
+    // Calcula índices para mediana de três
+    int idx1 = low + (n/4);
+    int idx2 = low + (n/2);
+    int idx3 = low + (3*n/4);
     // Seleciona o pivô como a mediana de três
-    int pivoIdx = mediana(array, low, high);
+    int pivoIdx = mediana(array, idx1, idx2, idx3);
 
-    // Se necessário, move o pivô para o final
-    if (pivoIdx != high)
-        swap(&array[high], &array[pivoIdx], stats);
+    // Move o pivô para o final
+    swap(&array[high], &array[pivoIdx], stats);
     
     return lomutoPadrao(array, low, high, stats);
 }
 
-// Função para Lomuto com pivô aleatório (V)
+// Função para Lomuto com pivô aleatório
 int lomutoRandom(int *array, int low, int high, Estatisticas *stats)
 {
+    // Escolhe um pivô aleatório e o move para o final
     swap(&array[high], &array[low + abs(array[low]) % (high - low + 1)], stats);
     
     return lomutoPadrao(array, low, high, stats);
 }
 
-// Função para Hoare Padrão (V)
+// Função para Hoare Padrão
 int hoarePadrao(int *array, int low, int high, Estatisticas *stats)
 {
     // Escolhe o primeiro elemento como pivô
@@ -166,6 +168,7 @@ int hoarePadrao(int *array, int low, int high, Estatisticas *stats)
     int i = low - 1;
     int j = high + 1;
 
+    // Loop infinito até os índices se cruzarem
     while (1)
     {
         // Encontra o elemento à esquerda que deve estar à direita
@@ -182,6 +185,7 @@ int hoarePadrao(int *array, int low, int high, Estatisticas *stats)
         if (i >= j)
             return j;
 
+        // Troca os elementos fora de ordem
         swap(&array[i], &array[j], stats);
     }
 }
@@ -189,23 +193,25 @@ int hoarePadrao(int *array, int low, int high, Estatisticas *stats)
 // Função para Hoare com pivô mediana de três
 int hoareMediana(int *array, int low, int high, Estatisticas *stats)
 {
-    // Se necessário, usa o Hoare padrão
-    if (high - low < 2)
-        return hoarePadrao(array, low, high, stats);
-    
+    // Calcula o tamanho do subarray
+    int n = high - low + 1;
+    // Calcula índices para mediana de três
+    int idx1 = low + (n/4);
+    int idx2 = low + (n/2);
+    int idx3 = low + (3*n/4);
     // Seleciona o pivô como a mediana de três
-    int pivoIdx = mediana(array, low, high);
+    int pivoIdx = mediana(array, idx1, idx2, idx3);
 
-    // Se necessário, move o pivô para o início
-    if (pivoIdx != low)
-        swap(&array[low], &array[pivoIdx], stats);
+    // Move o pivô para o início
+    swap(&array[low], &array[pivoIdx], stats);
     
     return hoarePadrao(array, low, high, stats);
 }
 
-// Função para Hoare com pivô aleatório (V)
+// Função para Hoare com pivô aleatório
 int hoareRandom(int *array, int low, int high, Estatisticas *stats)
 {
+    // Escolhe um pivô aleatório e o move para o início
     swap(&array[low], &array[low + abs(array[low]) % (high - low + 1)], stats);
     
     return hoarePadrao(array, low, high, stats);
@@ -214,11 +220,16 @@ int hoareRandom(int *array, int low, int high, Estatisticas *stats)
 // Procedimento Quick Sort
 void quickSort(int *array, int low, int high, int method, Estatisticas *stats)
 {
+    // Incrementa o contador de chamadas
     stats->chamadas++;
     
+    // Verifica se o subarray tem mais de um elemento
     if(low < high)
     {
+        // Índice do pivô após partição
         int mid;
+
+        // Seleciona o método de partição com base no parâmetro
         switch(method)
         {
             case 1: mid = lomutoPadrao(array, low, high, stats); break;
@@ -230,11 +241,12 @@ void quickSort(int *array, int low, int high, int method, Estatisticas *stats)
             default: break;
         }
 
+        // Hoare
         if(method >= 4)
         {
             quickSort(array, low, mid, method, stats);
             quickSort(array, mid + 1, high, method, stats);
-        } else
+        } else // Lomuto
         {
             quickSort(array, low, mid - 1, method, stats);
             quickSort(array, mid + 1, high, method, stats);
@@ -245,28 +257,36 @@ void quickSort(int *array, int low, int high, int method, Estatisticas *stats)
 // Procedimento para mesclar dois subarrays
 void merge(MetodoResultado *v, int inicio, int meio, int fim)
 {
+    // Índice para o inicio
     int i = inicio;
+    // Índice para o meio + 1
     int j = meio + 1;
+    // Índice para o array auxiliar
     int k = 0;
 
+    // Array auxiliar para armazenar a mesclagem
     int tamanho = fim - inicio + 1;
     MetodoResultado *aux = malloc(tamanho * sizeof(MetodoResultado));
 
+    // Mescla os dois subarrays em ordem
     while (i <= meio && j <= fim)
     {
-        // Estável: mantém ordem em caso de empate
+        // Mantém ordem em caso de empate
         if (v[i].custo <= v[j].custo)
             aux[k++] = v[i++];
         else
             aux[k++] = v[j++];
     }
 
+    // Copia os elementos restantes do primeiro subarray
     while (i <= meio)
         aux[k++] = v[i++];
 
+    // Copia os elementos restantes do segundo subarray
     while (j <= fim)
         aux[k++] = v[j++];
 
+    // Copia de volta para o array original
     for (i = inicio, k = 0; i <= fim; i++, k++)
         v[i] = aux[k];
 
@@ -276,12 +296,15 @@ void merge(MetodoResultado *v, int inicio, int meio, int fim)
 // Merge Sort recursivo
 void mergeSort(MetodoResultado *v, int inicio, int fim)
 {
+    // Verifica se o array tem mais de um elemento
     if (inicio < fim)
     {
+        // Calcula o ponto médio
         int meio = inicio + (fim - inicio) / 2;
-
+        // Ordena as duas metades
         mergeSort(v, inicio, meio);
         mergeSort(v, meio + 1, fim);
+        // Mescla as duas metades ordenadas
         merge(v, inicio, meio, fim);
     }
 }
@@ -289,22 +312,30 @@ void mergeSort(MetodoResultado *v, int inicio, int fim)
 // Função para copiar um vetor
 int* copiaVetor(int *original, int n)
 {
+    // Aloca memória para a cópia
     int *copia = malloc(sizeof(int) * n);
     if (!copia) return NULL;
+
+    // Copia os elementos
     for (int i = 0; i < n; i++)
         copia[i] = original[i];
+    
     return copia;
 }
 
 // Procedimento para liberar memória
 void liberarSetArrays(SetArrays *set)
 {
+    // Verifica se o set é válido
     if (set && set->arrays)
     {
+        // Libera cada array individualmente
         for (int i = 0; i < set->qtdArrays; ++i)
             if (set->arrays[i].array)
                 free(set->arrays[i].array);
+        // Libera o array de arrays
         free(set->arrays);
+        // Zera os campos
         set->arrays = NULL;
         set->qtdArrays = 0;
     }
@@ -312,6 +343,7 @@ void liberarSetArrays(SetArrays *set)
 
 int main(int argc, char *argv[])
 {
+    clock_t start = clock();
     // Verifica argumentos
     if (argc != 3)
     {
@@ -368,23 +400,22 @@ int main(int argc, char *argv[])
         
         // Gerar output no formato especificado
         fprintf(output, "[%d]:", dadosLidos.arrays[i].size);
-        for (int m = 0; m < 6; m++) {
+        for (int m = 0; m < 6; m++)
+        {
             fprintf(output, "%s(%d)", resultados[m].nome, resultados[m].custo);
             if (m < 5) fprintf(output, ",");
         }
-        fprintf(output, "\n");
-        
-        // Também imprimir no console para verificação
-        printf("[%d]:", dadosLidos.arrays[i].size);
-        for (int m = 0; m < 6; m++) {
-            printf("%s(%d)", resultados[m].nome, resultados[m].custo);
-            if (m < 5) printf(",");
-        }
-        printf("\n");
+
+        if (i < dadosLidos.qtdArrays - 1)
+            fprintf(output, "\n");
     }
 
     // Libera memória
     liberarSetArrays(&dadosLidos);
+    // Calcula e imprime tempo de execução
+    clock_t end = clock();
+    double time_spent = (double)(end - start) / CLOCKS_PER_SEC;
+    printf("Tempo de execucao: %.6f segundos\n", time_spent);
     // Fecha arquivos
     fclose(input);
     fclose(output);
