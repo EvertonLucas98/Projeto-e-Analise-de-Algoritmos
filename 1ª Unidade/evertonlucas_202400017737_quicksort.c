@@ -1,4 +1,3 @@
-#include <time.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -254,73 +253,29 @@ void quickSort(int *array, int low, int high, int method, Estatisticas *stats)
     }
 }
 
-// Procedimento para mesclar dois subarrays
-void merge(MetodoResultado *v, int inicio, int meio, int fim)
+// Ordenação estável usando Insertion Sort
+void insertionSort(MetodoResultado *arr, int n)
 {
-    // Índice para o inicio
-    int i = inicio;
-    // Índice para o meio + 1
-    int j = meio + 1;
-    // Índice para o array auxiliar
-    int k = 0;
-
-    // Array auxiliar para armazenar a mesclagem
-    int tamanho = fim - inicio + 1;
-    MetodoResultado *aux = malloc(tamanho * sizeof(MetodoResultado));
-
-    // Mescla os dois subarrays em ordem
-    while (i <= meio && j <= fim)
+    // Percorre cada elemento do array
+    for (int i = 1; i < n; i++)
     {
-        // Mantém ordem em caso de empate
-        if (v[i].custo <= v[j].custo)
-            aux[k++] = v[i++];
-        else
-            aux[k++] = v[j++];
+        // Armazena o elemento atual
+        MetodoResultado key = arr[i];
+        // Índice do elemento anterior
+        int j = i - 1;
+
+        // Move os elementos maiores que key para uma posição à frente
+        while (j >= 0 && arr[j].custo > key.custo)
+        {
+            // Move o elemento para a direita
+            arr[j + 1] = arr[j];
+            // Decrementa o índice
+            j--;
+        }
+
+        // Insere o elemento na posição correta
+        arr[j + 1] = key;
     }
-
-    // Copia os elementos restantes do primeiro subarray
-    while (i <= meio)
-        aux[k++] = v[i++];
-
-    // Copia os elementos restantes do segundo subarray
-    while (j <= fim)
-        aux[k++] = v[j++];
-
-    // Copia de volta para o array original
-    for (i = inicio, k = 0; i <= fim; i++, k++)
-        v[i] = aux[k];
-
-    free(aux);
-}
-
-// Merge Sort recursivo
-void mergeSort(MetodoResultado *v, int inicio, int fim)
-{
-    // Verifica se o array tem mais de um elemento
-    if (inicio < fim)
-    {
-        // Calcula o ponto médio
-        int meio = inicio + (fim - inicio) / 2;
-        // Ordena as duas metades
-        mergeSort(v, inicio, meio);
-        mergeSort(v, meio + 1, fim);
-        // Mescla as duas metades ordenadas
-        merge(v, inicio, meio, fim);
-    }
-}
-
-// Função para copiar um vetor
-int* copiaVetor(int *original, int n)
-{
-    // Aloca memória para a cópia
-    int *copia = malloc(sizeof(int) * n);
-    if (!copia) return NULL;
-
-    // Copia os elementos
-    for (int i = 0; i < n; i++)
-        copia[i] = original[i];
-    
-    return copia;
 }
 
 // Procedimento para escrever resultados no arquivo
@@ -333,6 +288,56 @@ void escreverResultados(FILE* arquivo, MetodoResultado *resultados, int qtdResul
         fprintf(arquivo, "%s(%d)", resultados[m].nome, resultados[m].custo);
         if (m < 5) fprintf(arquivo, ",");
     }
+}
+
+// Procedimento para processar os dados lidos
+void processarDados(FILE* output, SetArrays dadosLidos, char nomesMetodos[6][3])
+{
+    // Tamanho máximo do array para alocação do buffer
+    int maxSize = 0;
+    // Determina o tamanho máximo entre os arrays
+    for (int i = 0; i < dadosLidos.qtdArrays; i++)
+        if (dadosLidos.arrays[i].size > maxSize)
+            maxSize = dadosLidos.arrays[i].size;
+    
+    // Aloca buffer para ordenação
+    int *buffer = malloc(sizeof(int) * maxSize);
+    if (!buffer)
+    {
+        fprintf(stderr, "Erro ao alocar buffer\n");
+        return;
+    }
+
+    // Processar cada array
+    for (int i = 0; i < dadosLidos.qtdArrays; i++)
+    {
+        // Armazenar resultados dos métodos
+        MetodoResultado resultados[6];
+        
+        // Testar cada método de ordenação
+        for (int method = 0; method < 6; method++)
+        {
+            // Inicializa estatísticas
+            Estatisticas stats = {0, 0};
+            // Copia o array original para o buffer
+            memcpy(buffer, dadosLidos.arrays[i].array, sizeof(int) * dadosLidos.arrays[i].size);
+            // Executa o QuickSort com o método atual
+            quickSort(buffer, 0, dadosLidos.arrays[i].size - 1, method + 1, &stats);
+            // Armazena o nome do método
+            strcpy(resultados[method].nome, nomesMetodos[method]);
+            // Armazena o número de trocas
+            resultados[method].custo = stats.trocas + stats.chamadas;
+        }
+        
+        // Ordenar de forma estável pelos resultados
+        insertionSort(resultados, 6);
+        // Gerar output no formato especificado
+        escreverResultados(output, resultados, dadosLidos.arrays[i].size);
+        // Nova linha entre os arrays, exceto após o último
+        fprintf(output, "\n");
+    }
+
+    free(buffer);
 }
 
 // Procedimento para liberar memória
@@ -353,44 +358,8 @@ void liberarSetArrays(SetArrays *set)
     }
 }
 
-// Procedimento para processar os dados lidos
-void processarDados(FILE* output, SetArrays dadosLidos, char nomesMetodos[6][3])
-{
-    for (int i = 0; i < dadosLidos.qtdArrays; i++)
-    {
-        // Armazenar resultados dos métodos
-        MetodoResultado resultados[6];
-        
-        // Testar cada método de ordenação
-        for (int method = 0; method < 6; method++)
-        {
-            // Inicializa estatísticas
-            Estatisticas stats = {0, 0};
-            // Cria cópia do array original
-            int *arrayTemp = copiaVetor(dadosLidos.arrays[i].array, dadosLidos.arrays[i].size);
-            // Executa o Quick Sort com o método atual
-            quickSort(arrayTemp, 0, dadosLidos.arrays[i].size - 1, method + 1, &stats);
-            // Armazena resultados
-            strcpy(resultados[method].nome, nomesMetodos[method]);
-            // Armazena o número de trocas
-            resultados[method].custo = stats.trocas + stats.chamadas;
-            // Libera memória temporária
-            free(arrayTemp);
-        }
-        
-        // Ordenar de forma estável pelos resultados
-        mergeSort(resultados, 0, 5);
-        // Gerar output no formato especificado
-        escreverResultados(output, resultados, dadosLidos.arrays[i].size);
-        // Nova linha entre os arrays, exceto após o último
-        if (i < dadosLidos.qtdArrays - 1)
-            fprintf(output, "\n");
-    }
-}
-
 int main(int argc, char *argv[])
 {
-    clock_t start = clock();
     // Verifica argumentos
     if (argc != 3)
     {
@@ -422,10 +391,6 @@ int main(int argc, char *argv[])
     processarDados(output, dadosLidos, nomesMetodos);
     // Libera memória
     liberarSetArrays(&dadosLidos);
-    // Calcula e imprime tempo de execução
-    clock_t end = clock();
-    double time_spent = (double)(end - start) / CLOCKS_PER_SEC;
-    printf("Tempo de execucao: %.6f segundos\n", time_spent);
     // Fecha arquivos
     fclose(input);
     fclose(output);
