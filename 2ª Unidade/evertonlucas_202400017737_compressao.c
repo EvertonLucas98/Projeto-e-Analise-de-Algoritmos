@@ -405,13 +405,6 @@ ResultadoComp compressaoHuffman(Dados *dados)
     return res;
 }
 
-void escreverHex(FILE* f, uint8_t* buffer, int tam)
-{
-    for(int i=0; i<tam; i++) {
-        fprintf(f, "%02X", buffer[i]);
-    }
-}
-
 int main(int argc, char *argv[])
 {
     clock_t inicio = clock();
@@ -447,9 +440,7 @@ int main(int argc, char *argv[])
         ResultadoComp rle = compressaoRLE(&dadosArquivo.dados[i]);
         ResultadoComp huf = compressaoHuffman(&dadosArquivo.dados[i]);
 
-        // CALCULAR O TAMANHO NECESSÁRIO PARA O BUFFER DE TEXTO
-        // Precisamos de espaço para: "Indice->ALGO(XXX.XX%)=" + (Dados * 2) + '\n' + '\0'
-        // Uma estimativa segura é: (Soma dos tamanhos dos buffers * 2) + 200 bytes de cabeçalho/formatação
+        // Calcular tamanho necessário para o buffer de saída
         int tamanhoNecessario = (rle.bufferTam + huf.bufferTam) * 2 + 256;
         
         char* bufferSaida = malloc(tamanhoNecessario);
@@ -496,9 +487,7 @@ int main(int argc, char *argv[])
 
     for (int i = 0; i < qtdDados; i++)
     {
-        fprintf(output, "%s", saidas[i]);
-        if (i < qtdDados - 1)
-            fprintf(output, "\n");
+        fprintf(output, "%s\n", saidas[i]);
         free(saidas[i]);
     }
     
