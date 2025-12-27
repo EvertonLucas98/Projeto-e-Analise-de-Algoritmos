@@ -3,7 +3,6 @@
 #include <string.h>
 #include <stdint.h>
 #include <omp.h>
-#include <time.h>
 
 typedef struct Dados
 {
@@ -407,23 +406,13 @@ ResultadoComp compressaoHuffman(Dados *dados)
 
 int main(int argc, char *argv[])
 {
-    clock_t inicio = clock();
     if (argc != 3)
-    {
-        printf("Uso: %s <input> <output>\n", argv[0]);
         return 1;
-    }
 
     FILE* input = fopen(argv[1], "r");
-    if (!input) {
-        perror("Erro ao abrir input");
-        return 1;
-    }
-    
     FILE* output = fopen(argv[2], "w");
-    if (!output) {
-        perror("Erro ao abrir output");
-        fclose(input);
+    if (!input || !output) {
+        perror("Erro ao abrir input ou output");
         return 1;
     }
 
@@ -458,8 +447,7 @@ int main(int argc, char *argv[])
             offset += snprintf(bufferSaida + offset, tamanhoNecessario - offset, "\n%d->RLE(%.2f%%)=", i, rle.percentual);
             for (int j = 0; j < rle.bufferTam; j++)
                 offset += snprintf(bufferSaida + offset, tamanhoNecessario - offset, "%02X", rle.buffer[j]);
-        }
-        else
+        } else
         {
             ResultadoComp* v = (huf.bitsTotal < rle.bitsTotal) ? &huf : &rle;
 
@@ -484,7 +472,7 @@ int main(int argc, char *argv[])
         free(huf.buffer);
     }
 
-
+    // Escreve todas as saídas no arquivo de uma vez
     for (int i = 0; i < qtdDados; i++)
     {
         fprintf(output, "%s\n", saidas[i]);
@@ -496,11 +484,6 @@ int main(int argc, char *argv[])
         free(dadosArquivo.dados[i].dados);
     free(dadosArquivo.dados);
     free(saidas);
-
-    clock_t fim = clock();
-    double tempo_gasto = (double)(fim - inicio) / CLOCKS_PER_SEC;
-    printf("Tempo de execucao: %.2f segundos\n", tempo_gasto);
-
     // Fechar arquivos
     fclose(input);
     fclose(output);
