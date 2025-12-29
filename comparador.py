@@ -28,9 +28,9 @@ def comparar_arquivos(arquivo1, arquivo2):
             print(f"Os arquivos são DIFERENTES!\nExiste {len(diferencas)} linha(s) diferente(s)!")
             print("=" * 80)
             # for num, c1, c2 in diferencas:
-            #     print(f"Linha {num}:")
-            #     print(f"  Arquivo 1: {c1}")
-            #     print(f"  Arquivo 2: {c2}")
+                # print(f"Linha {num}:")
+                # print(f"  Arquivo 1: {c1}")
+                # print(f"  Arquivo 2: {c2}")
                 # print("-" * 80)
             return False
 
