@@ -4,7 +4,6 @@
 
 typedef struct Pacote
 {
-    int ordem;
     int tamanho;
     int prioridade;
     unsigned char dados[512];
@@ -64,9 +63,6 @@ Entrada *lerDados(FILE *entrada)
             return NULL;
         }
 
-        // Define a ordem do pacote
-        p->ordem = i;
-
         // Lê os dados do pacote
         for (int j = 0; j < p->tamanho; j++)
         {
@@ -84,51 +80,57 @@ Entrada *lerDados(FILE *entrada)
 void heapify(Pacote *heap, int n, int i)
 {
     // Inicializa o maior como raiz
-    int maior_idx = i;
+    int raiz = i;
     // Índices dos filhos
     int esq = (2 * i) + 1;
     int dir = (2 * i) + 2;
 
     // Verifica se o filho esquerdo é maior que a raiz
-    if (esq < n && heap[esq].prioridade < heap[maior_idx].prioridade)
-        maior_idx = esq; // Atualiza maior_idx se o filho esquerdo for maior
+    if (esq < n && heap[esq].prioridade < heap[raiz].prioridade)
+        raiz = esq; // Atualiza raiz se o filho esquerdo for maior
 
     // Verifica se o filho direito é maior que o maior até agora
-    if (dir < n && heap[dir].prioridade < heap[maior_idx].prioridade)
-        maior_idx = dir; // Atualiza maior_idx se o filho direito for maior
+    if (dir < n && heap[dir].prioridade < heap[raiz].prioridade)
+        raiz = dir; // Atualiza raiz se o filho direito for maior
 
     // Se o maior não for a raiz, troca e continua heapificando
-    if (maior_idx != i)
+    if (raiz != i)
     {
-        // Troca heap[i] com heap[maior_idx]
+        // Troca heap[i] com heap[raiz]
         Pacote tmp = heap[i];
         // Realiza a troca
-        heap[i] = heap[maior_idx];
+        heap[i] = heap[raiz];
         // Completa a troca
-        heap[maior_idx] = tmp;
+        heap[raiz] = tmp;
         // Recursivamente heapifica a subárvore afetada
-        heapify(heap, n, maior_idx);
+        heapify(heap, n, raiz);
     }
 }
 
 // Procedimento para construir o heap inicial
 void construirHeap(Pacote *heap, int n)
 {
-    // Começa do último nó não-folha e aplica heapify
-    for (int i = n / 2 - 1; i >= 0; i--)
+    // Constrói o heap (reorganiza o array)
+    for (int i = (n/2) - 1; i >= 0; i--)
         heapify(heap, n, i);
 }
 
+// Procedimento para realizar o Heap Sort
 void heapSort(Pacote *vetor, int n)
 {
+    // Constrói o heap inicial
     construirHeap(vetor, n);
 
+    // Um por um extrai elementos do heap
     for (int i = n - 1; i > 0; i--)
     {
+        // Move a raiz atual para o final
         Pacote tmp = vetor[0];
+        // Move o maior valor para o final
         vetor[0] = vetor[i];
+        // Coloca o valor da raiz no final
         vetor[i] = tmp;
-
+        // Heapifica o heap reduzido
         heapify(vetor, i, 0);
     }
 }
@@ -136,16 +138,18 @@ void heapSort(Pacote *vetor, int n)
 // Procedimento para processar o buffer de pacotes
 void processarBuffer(FILE *output, Pacote *buffer, int qtd)
 {
-    // 1. Ordena o lote inteiro
+    // Ordena o lote inteiro
     heapSort(buffer, qtd);
-
-    // 2. Percorre o vetor ordenado
+    // Percorre o vetor ordenado
     fprintf(output, "|");
 
+    // Imprime os pacotes no formato especificado
     for (int i = 0; i < qtd; i++)
     {
+        // Obtém o pacote atual
         Pacote p = buffer[i];
 
+        // Imprime os dados do pacote em formato hexadecimal
         for (int j = 0; j < p.tamanho; j++)
         {
             fprintf(output, "%02X", p.dados[j]);
@@ -161,6 +165,7 @@ void processarBuffer(FILE *output, Pacote *buffer, int qtd)
 // Procedimento para processar os pacotes conforme a capacidade do roteador
 void processarPacotes(Entrada *dados, FILE *output)
 {
+    // Aloca o buffer para armazenar os pacotes temporariamente
     Pacote *buffer = malloc(dados->numPacotes * sizeof(Pacote));
     if (!buffer)
     {
@@ -168,19 +173,22 @@ void processarPacotes(Entrada *dados, FILE *output)
         return;
     }
 
+    // Capacidade restante no buffer
     int capacidadeRestante = dados->capacidade;
+    // Quantidade de pacotes no buffer
     int qtdBuffer = 0;
 
+    // Percorre todos os pacotes
     for (int i = 0; i < dados->numPacotes; i++)
     {
+        // Ponteiro para o pacote atual
         Pacote *p = &dados->pacotes[i];
 
-        // Se o pacote não cabe no buffer atual,
-        // processa tudo que já foi coletado
+        // Se o pacote não cabe, processa tudo que já foi coletado
         if (p->tamanho > capacidadeRestante && qtdBuffer > 0)
         {
+            // Processa o buffer atual
             processarBuffer(output, buffer, qtdBuffer);
-
             // Reinicia o buffer
             qtdBuffer = 0;
             capacidadeRestante = dados->capacidade;
@@ -191,10 +199,11 @@ void processarPacotes(Entrada *dados, FILE *output)
         capacidadeRestante -= p->tamanho;
     }
 
-    // Processa o que sobrou no buffer
+    // Se restou algo no buffer, processa
     if (qtdBuffer > 0)
         processarBuffer(output, buffer, qtdBuffer);
 
+    // Libera o buffer
     free(buffer);
 }
 
