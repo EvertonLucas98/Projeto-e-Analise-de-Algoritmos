@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 
 typedef struct
 {
@@ -92,18 +93,24 @@ void swap(int *a, int *b, Estatisticas *stats)
 }
 
 // Função que retorna o índice da mediana de três
-int mediana(int *array, int low, int mid, int high)
+int mediana(int *array, int low, int high)
 {
+    // Calcula o tamanho do subarray
+    int n = high - low + 1;
+    // Calcula índices para mediana de três
+    int idx1 = low + (n/4);
+    int idx2 = low + (n/2);
+    int idx3 = low + (3*n/4);
     // Obtém os valores dos três elementos
-    int a = array[low], b = array[mid], c = array[high];
+    int a = array[idx1], b = array[idx2], c = array[idx3];
 
     // Compara para encontrar a mediana
     if ((a <= b && b <= c) || (c <= b && b <= a))
-        return mid;
+        return idx2;
     else if ((b <= a && a <= c) || (c <= a && a <= b))
-        return low;
+        return idx1;
     else
-        return high;
+        return idx3;
 }
 
 // Função QuickSort Lomuto Padrão
@@ -134,15 +141,8 @@ int lomutoPadrao(int *array, int low, int high, Estatisticas *stats)
 // Função para Lomuto com mediana de três
 int lomutoMediana(int *array, int low, int high, Estatisticas *stats)
 {
-    // Calcula o tamanho do subarray
-    int n = high - low + 1;
-    // Calcula índices para mediana de três
-    int idx1 = low + (n/4);
-    int idx2 = low + (n/2);
-    int idx3 = low + (3*n/4);
     // Seleciona o pivô como a mediana de três
-    int pivoIdx = mediana(array, idx1, idx2, idx3);
-
+    int pivoIdx = mediana(array, low, high);
     // Move o pivô para o final
     swap(&array[high], &array[pivoIdx], stats);
     
@@ -192,15 +192,8 @@ int hoarePadrao(int *array, int low, int high, Estatisticas *stats)
 // Função para Hoare com pivô mediana de três
 int hoareMediana(int *array, int low, int high, Estatisticas *stats)
 {
-    // Calcula o tamanho do subarray
-    int n = high - low + 1;
-    // Calcula índices para mediana de três
-    int idx1 = low + (n/4);
-    int idx2 = low + (n/2);
-    int idx3 = low + (3*n/4);
     // Seleciona o pivô como a mediana de três
-    int pivoIdx = mediana(array, idx1, idx2, idx3);
-
+    int pivoIdx = mediana(array, low, high);
     // Move o pivô para o início
     swap(&array[low], &array[pivoIdx], stats);
     

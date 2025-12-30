@@ -1,11 +1,10 @@
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <math.h>
-#include <float.h>
-#include <stdbool.h>
 #include <stdint.h>
-#include <time.h>
+#include <stdbool.h>
 
+// Estruturas
 typedef struct {
     char codigo[14];
     float valor;
@@ -29,118 +28,130 @@ typedef struct {
     uint32_t qtd;
 } VeiculosArray;
 
-void liberarMatriz3D(float ***m, uint32_t qtdItens, uint32_t capPeso)
+// Fórmula: Camada * (AreaDaCamada) + Linha * (LarguraDaLinha) + Coluna
+#define IDX(i, p, v, strideP, strideV) ((size_t)(i) * (strideP) * (strideV) + (size_t)(p) * (strideV) + (size_t)(v))
+
+// Procedimento para preencher Tabela 3D linearizada
+void preencherTabelaLinear(float *matriz, Item *itens, uint32_t qtdItens, uint32_t capPeso, uint32_t capVolume)
 {
-    for (uint32_t i = 0; i <= qtdItens; ++i)
-    {
-        for (uint32_t j = 0; j <= capPeso; ++j)
-            free(m[i][j]);
-        free(m[i]);
-    }
-    free(m);
-}
+    // Cálculo de strides para acesso linear
+    uint32_t strideP = capPeso + 1;
+    uint32_t strideV = capVolume + 1;
 
-// Aloca matriz 3D
-float*** alocarMatriz3D(uint32_t qtdItens, uint32_t capPeso, uint32_t capVolume)
-{
-    float ***matriz3D = NULL;
-    matriz3D = (float ***) malloc((qtdItens + 1) * sizeof(float **));
-    if (!matriz3D) return NULL;
-
-    for (uint32_t i = 0; i <= qtdItens; ++i)
-    {
-        matriz3D[i] = (float **) malloc((capPeso + 1) * sizeof(float *));
-        for (uint32_t j = 0; j <= capPeso; ++j)
-            matriz3D[i][j] = (float *) calloc((capVolume + 1), sizeof(float));
-    }
-
-    return matriz3D;
-}
-
-// Preenche Tabela 3D
-void preencherTabela3D(float ***matriz3D, Item *itens, uint32_t qtdItens, uint32_t capPeso, uint32_t capVolume)
-{
-    // Já inicializado com zeros via calloc
+    // Itera sobre os itens
     for (uint32_t i = 1; i <= qtdItens; ++i)
     {
-        const uint32_t idx = i - 1;
-        const uint32_t pesoItem = itens[idx].peso;
-        const uint32_t volumeItem = itens[idx].volume;
-        const float valorItem = itens[idx].valor;
+        // Atributos do item atual
+        const uint32_t idxItem = i - 1;
+        const uint32_t pesoItem = itens[idxItem].peso;
+        const uint32_t volumeItem = itens[idxItem].volume;
+        const float valorItem = itens[idxItem].valor;
 
-        float **camadaAtual = matriz3D[i];
-        float **camadaPrev = matriz3D[i - 1];
-
+        // Itera sobre capacidades de Peso
         for (uint32_t p = 0; p <= capPeso; ++p)
         {
-            float *colAtual = camadaAtual[p];
-            float *colPrev = camadaPrev[p];
+            // Verifica se é possível incluir o item atual pelo peso
+            int pesoRestante = (int)p - (int)pesoItem;
+            bool podeIncluirPeso = (pesoRestante >= 0);
 
-            int pesoRestanteBase = (int)p - (int)pesoItem;
-            bool podeIncluirBase = (pesoRestanteBase >= 0);
-
+            // Itera sobre capacidades de Volume
             for (uint32_t v = 0; v <= capVolume; ++v)
             {
-                float melhor = colPrev[v]; // sem incluir
-                if (podeIncluirBase && volumeItem <= v)
+                // Calcula índices lineares para acesso direto à RAM
+                size_t idxAtual = IDX(i, p, v, strideP, strideV);
+                size_t idxPrev  = IDX(i - 1, p, v, strideP, strideV);
+                // Valor sem incluir o item atual
+                float melhor = matriz[idxPrev];
+
+                // Verifica se é possível incluir o item atual pelo volume
+                if (podeIncluirPeso && (int)v >= (int)volumeItem)
                 {
-                    float comItem = camadaPrev[pesoRestanteBase][v - volumeItem] + valorItem;
+                    // Acessa o estado anterior subtraindo o peso/volume do item atual
+                    size_t idxPrevComItem = IDX(i - 1, pesoRestante, v - volumeItem, strideP, strideV);
+                    float comItem = matriz[idxPrevComItem] + valorItem;
+                    
+                    // Atualiza o melhor valor se incluir o item for vantajoso
                     if (comItem > melhor) melhor = comItem;
                 }
-                colAtual[v] = melhor;
+
+                // Armazena o melhor valor encontrado na posição atual
+                matriz[idxAtual] = melhor;
             }
         }
     }
 }
 
-// Backtracking: marca itens usados e retorna valor máximo
+// Backtracking Otimizado com Alocação Única
 float backtracking(ItemArray itens, uint32_t qtdItens, uint32_t capPeso, uint32_t capVolume)
 {
-    // Aloca matriz Principal 3D
-    float ***matriz3D = alocarMatriz3D(qtdItens, capPeso, capVolume);
-    // Preenche tabela para os itens remanescentes, com capacidades maxPeso x maxVolume
-    preencherTabela3D(matriz3D, itens.itens, qtdItens, capPeso, capVolume);
-    if (qtdItens == 0) return 0.0f;
-    int auxPeso = (int)capPeso;
-    int auxVolume = (int)capVolume;
-    uint32_t temp = qtdItens;
+    // Aloca matriz 3D linearizada em um único bloco
+    size_t totalElementos = (size_t)(qtdItens + 1) * (capPeso + 1) * (capVolume + 1);
+    // calloc inicializa com 0, necessário para a lógica da DP
+    float *matrizLinear = (float *) calloc(totalElementos, sizeof(float));
+    if (!matrizLinear) {
+        fprintf(stderr, "Erro fatal: Memoria insuficiente para alocar matriz de DP.\n");
+        exit(1);
+    }
 
-    float valorMaximo = matriz3D[qtdItens][capPeso][capVolume];
+    // Preenche a tabela usando aritmética de ponteiros
+    preencherTabelaLinear(matrizLinear, itens.itens, qtdItens, capPeso, capVolume);
+    // Cálculo de strides para acesso linear
+    uint32_t strideP = capPeso + 1;
+    uint32_t strideV = capVolume + 1;
+    // O valor máximo está na última posição da matriz lógica
+    float valorMaximo = matrizLinear[IDX(qtdItens, capPeso, capVolume, strideP, strideV)];
 
-    while (temp > 0)
+    // Se houver itens, faz o caminho reverso para descobrir quais foram escolhidos
+    if (qtdItens > 0)
     {
-        // Se auxPeso/auxVolume forem negativos, não há mais itens a considerar
-        if (auxPeso < 0 || auxVolume < 0) break;
+        // Variáveis auxiliares para rastreamento
+        int auxPeso = (int)capPeso;
+        int auxVolume = (int)capVolume;
+        uint32_t temp = qtdItens;
 
-        // Se o valor máximo na posição atual for diferente do valor máximo sem o item 'temp-1',
-        // significa que o item 'temp-1' foi incluído.
-        if (matriz3D[temp][auxPeso][auxVolume] != matriz3D[temp-1][auxPeso][auxVolume])
+        // Caminha de trás para frente na matriz
+        while (temp > 0)
         {
-            // marca e imprime antes de decrementar temp
-            itens.itens[temp-1].usado = true;
-            auxPeso -= (int)itens.itens[temp-1].peso;
-            auxVolume -= (int)itens.itens[temp-1].volume;
-            temp--;
-        }
-        else
-        {
-            temp--;
+            // Se capacidades negativas, algo errado ou fim do caminho
+            if (auxPeso < 0 || auxVolume < 0) break;
+
+            // Valores atual e anterior na matriz
+            float valAtual = matrizLinear[IDX(temp, auxPeso, auxVolume, strideP, strideV)];
+            float valPrev  = matrizLinear[IDX(temp - 1, auxPeso, auxVolume, strideP, strideV)];
+
+            // Se o valor mudou em relação à iteração anterior (temp-1), significa que incluímos o item
+            if (valAtual != valPrev)
+            {
+                // Marca o item como usado e ajusta capacidades restantes
+                itens.itens[temp-1].usado = true;
+                auxPeso -= (int)itens.itens[temp-1].peso;
+                auxVolume -= (int)itens.itens[temp-1].volume;
+                temp--;
+            } else // Item não foi incluído, sobe para a linha anterior mantendo peso/volume
+            {
+                temp--;
+            }
         }
     }
-    // Libera matriz 3D
-    liberarMatriz3D(matriz3D, qtdItens, capPeso);
 
+    // Libera o bloco único de memória
+    free(matrizLinear);
+
+    // Retorna o valor máximo calculado
     return valorMaximo;
 }
 
-// Procedimento para calcular somatórios de peso e volume dos itens usados
+// Procedimento para calcular somatórios de peso e volume dos itens marcados como usados
 void somatorio(Item *itens, uint32_t qtdItens, uint32_t *somatorioPeso, uint32_t *somatorioVolume)
 {
-    *somatorioPeso = 0; // Inicializa somatório
-    *somatorioVolume = 0; // Inicializa somatório
+    // Inicializa somatórios
+    *somatorioPeso = 0;
+    *somatorioVolume = 0;
+
+    // Itera sobre os itens para calcular somatórios
     for (uint32_t i = 0; i < qtdItens; ++i)
     {
-        // Apenas soma se o item foi marcado como usado pelo backtracking
+        // Verifica se o item foi marcado como usado
         if (itens[i].usado)
         {
             *somatorioPeso += itens[i].peso;
@@ -149,20 +160,19 @@ void somatorio(Item *itens, uint32_t qtdItens, uint32_t *somatorioPeso, uint32_t
     }
 }
 
-// Função para calcular porcentagens
+// Função auxiliar para porcentagem
 uint32_t calcularPorcentagens(uint32_t valorParcial, uint32_t valorTotal)
 {
     if (valorTotal == 0) return 0;
     return (uint32_t) round(((float)valorParcial / (float)valorTotal) * 100.0f);
 }
 
-// Procedimento para escrever saída formatada
+// Função para escrever a linha de saída formatada
 void escreverOutput(FILE* output, char placa[], float valorMaximo, uint32_t somaPeso, uint32_t porcentagemPeso, uint32_t somaVolume, uint32_t porcentagemVolume, ItemArray itens)
 {
     fprintf(output, "[%s]R$%.2f,%dKG(%d%%),%dL(%d%%)->", placa, valorMaximo, somaPeso, porcentagemPeso, somaVolume, porcentagemVolume);
 
     bool primeiro = true;
-    // Imprime códigos na ordem do primeiro adicionado ao último (aqui: do índice 0..qtd-1)
     for (uint32_t i = 0; i < itens.qtd; ++i)
     {
         if (itens.itens[i].usado)
@@ -175,54 +185,61 @@ void escreverOutput(FILE* output, char placa[], float valorMaximo, uint32_t soma
     fprintf(output, "\n");
 }
 
-// Função para remover itens usados do array e retorna a nova quantidade
+// Função para remover itens usados do array e retorna nova quantidade
 uint32_t removerItensUsados(Item *itens, uint32_t qtd)
 {
+    // Índice de escrita para itens não usados
     uint32_t write = 0;
+
+    // Itera sobre os itens
     for (uint32_t i = 0; i < qtd; ++i)
     {
+        // Se o item não foi usado, mantém no array
         if (!itens[i].usado)
         {
+            // Move o item para a posição de escrita se necessário
             if (write != i) itens[write] = itens[i];
+            // Incrementa o índice de escrita
             write++;
         }
     }
-    
+
+    // Retorna a nova quantidade de itens não usados
     return write;
 }
 
-// Procedimento principal de processamento
+// Procedimento principal de processamento dos dados
 void processarDados(VeiculosArray veiculos, ItemArray itens, FILE* output)
 {
+    // Itera sobre cada veículo
     for (uint32_t i = 0; i < veiculos.qtd; i++)
     {
-        // Reseta o campo 'usado' para todos os itens antes do backtracking,
-        // pois a seleção é feita item a item para o veículo atual.
-        for (uint32_t j = 0; j < itens.qtd; ++j) {
+        // Reseta flags para a nova iteração para o veículo atual
+        for (uint32_t j = 0; j < itens.qtd; ++j)
             itens.itens[j].usado = false;
-        }
 
+        // Capacidades do veículo atual
         uint32_t capP = veiculos.veiculos[i].peso;
         uint32_t capV = veiculos.veiculos[i].volume;
-        // O backtracking marca os itens 'usado' no array 'itens'
+        // Calcula valor máximo possível com backtracking
         float valorMaximo = backtracking(itens, itens.qtd, capP, capV);
-        
+        // Calcula somatórios de peso e volume dos itens escolhidos
         uint32_t somaPeso = 0, somaVolume = 0;
-        // O somatório calcula a carga real do veículo (usando a flag 'usado')
         somatorio(itens.itens, itens.qtd, &somaPeso, &somaVolume);
-
+        // Calcula porcentagens de peso e volume utilizados
         uint32_t porcentagemPeso = calcularPorcentagens(somaPeso, capP);
         uint32_t porcentagemVolume = calcularPorcentagens(somaVolume, capV);
-
+        // Cria array temporário para escrita
         ItemArray tmpArr = { itens.itens, itens.qtd, 0.0f };
+        // Escreve a linha de saída para o veículo atual
         escreverOutput(output, veiculos.veiculos[i].placa, valorMaximo, somaPeso, porcentagemPeso, somaVolume, porcentagemVolume, tmpArr);
-
-        // Remove itens usados (compacta array). Atualiza qtdItens.
+        // Remove itens carregados para não serem considerados no próximo veículo
         uint32_t novaQtd = removerItensUsados(itens.itens, itens.qtd);
+        // Atualiza a quantidade de itens restantes
         itens.qtd = novaQtd;
     }
 
-    // Imprime pendente se houver
+    // Imprime itens pendentes, se houver
     if (itens.qtd > 0)
     {
         float somaValor = 0.0f;
@@ -244,10 +261,11 @@ void processarDados(VeiculosArray veiculos, ItemArray itens, FILE* output)
     }
 }
 
+// Função para leitura de arquivo - Veículos
 VeiculosArray lerDadosVeiculo(FILE* arquivo)
 {
-    VeiculosArray veiculos = {NULL, 0};
     uint32_t n;
+    VeiculosArray veiculos = {NULL, 0};
 
     if (fscanf(arquivo, "%u", &n) != 1) return veiculos;
 
@@ -262,6 +280,7 @@ VeiculosArray lerDadosVeiculo(FILE* arquivo)
     return veiculos;
 }
 
+// Função para leitura de arquivo - Itens
 ItemArray lerDadosItem(FILE* arquivo)
 {
     ItemArray itens = {NULL, 0, 0.0f};
@@ -285,33 +304,28 @@ ItemArray lerDadosItem(FILE* arquivo)
 
 int main(int argc, char *argv[])
 {
-    clock_t start = clock();
-    // Verificação de argumentos
+    // Validação de Argumentos
     if (argc != 3)
+        return 1;
+
+    // Abre arquivos de entrada e saída
+    FILE* input = fopen(argv[1], "r");
+    FILE* output = fopen(argv[2], "w");
+    if (!input || !output)
     {
-        printf("Uso: %s <arquivo_entrada> <arquivo_saida>\n", argv[0]);
+        perror("Erro ao abrir arquivo de entrada");
         return 1;
     }
 
-    // Abrindo os arquivos
-    FILE* input = fopen(argv[1], "r");
-    FILE* output = fopen(argv[2], "w");
-
-    // Lendo os dados
+    // Leitura de Dados de Entrada
     VeiculosArray dadosVeiculos = lerDadosVeiculo(input);
     ItemArray dadosItens = lerDadosItem(input);
-
-    // Processando os dados
+    // Processamento dos Dados
     processarDados(dadosVeiculos, dadosItens, output);
-    clock_t end = clock();
-    double time_spent = (double)(end - start) / CLOCKS_PER_SEC;
-    printf("Tempo de execucao: %.2f segundos\n", time_spent);
-
-    // Fechando os arquivos
+    // Fecha arquivos
     fclose(input);
     fclose(output);
-
-    // Liberando a memória
+    // Libera memória alocada
     free(dadosVeiculos.veiculos);
     free(dadosItens.itens);
 
